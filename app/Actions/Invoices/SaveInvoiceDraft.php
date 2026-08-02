@@ -13,6 +13,7 @@ use App\Models\Matter;
 use App\Models\MatterCharge;
 use App\Models\TimeEntry;
 use App\Models\User;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -37,10 +38,18 @@ class SaveInvoiceDraft
         }
 
         return DB::transaction(function () use ($attributes, $user, $invoice): Invoice {
+            if ($invoice !== null && ! $user->can('update', $invoice)) {
+                throw new AuthorizationException;
+            }
+
             $client = Client::query()->whereKey((int) $attributes['client_id'])->firstOrFail();
-            $matter = $this->matterFor($attributes, $client);
+            if (! $user->can('view', $client)) {
+                throw new AuthorizationException;
+            }
+
+            $matter = $this->matterFor($attributes, $client, $user);
             $draft = $this->saveInvoice($attributes, $user, $invoice, $client, $matter);
-            $items = $this->buildItems($attributes['items'], $client, $matter, $draft);
+            $items = $this->buildItems($attributes['items'], $client, $matter, $draft, $user);
 
             $draft->items()->delete();
             $draft->items()->createMany($items);
@@ -69,7 +78,7 @@ class SaveInvoiceDraft
     /**
      * @param  array<string, mixed>  $attributes
      */
-    private function matterFor(array $attributes, Client $client): ?Matter
+    private function matterFor(array $attributes, Client $client, User $user): ?Matter
     {
         $matterId = $attributes['matter_id'] ?? null;
 
@@ -86,6 +95,10 @@ class SaveInvoiceDraft
             throw ValidationException::withMessages([
                 'matter_id' => 'Select a matter that belongs to the invoice client.',
             ]);
+        }
+
+        if (! $user->can('view', $matter)) {
+            throw new AuthorizationException;
         }
 
         return $matter;
@@ -144,8 +157,9 @@ class SaveInvoiceDraft
         Client $client,
         ?Matter $matter,
         Invoice $invoice,
+        User $user,
     ): array {
-        $sources = $this->sourcesFor($requestedItems, $client, $matter);
+        $sources = $this->sourcesFor($requestedItems, $client, $matter, $user);
         $errors = [];
         $seenSources = [];
         $occupiedSources = $this->occupiedSources($requestedItems, $invoice);
@@ -209,7 +223,7 @@ class SaveInvoiceDraft
      * @param  array<int, array<string, mixed>>  $requestedItems
      * @return array<string, array<int, Expense|MatterCharge|TimeEntry>>
      */
-    private function sourcesFor(array $requestedItems, Client $client, ?Matter $matter): array
+    private function sourcesFor(array $requestedItems, Client $client, ?Matter $matter, User $user): array
     {
         $ids = [
             'time_entry' => [],
@@ -231,6 +245,7 @@ class SaveInvoiceDraft
                 ->whereNotNull('hourly_rate')
                 ->whereHas('matter', fn ($query) => $query
                     ->whereBelongsTo($client)
+                    ->whereIn('id', Matter::query()->visibleTo($user)->select('id'))
                     ->when($matter !== null, fn ($matterQuery) => $matterQuery->whereKey($matter)))
                 ->lockForUpdate()
                 ->get()
@@ -241,6 +256,7 @@ class SaveInvoiceDraft
                 ->where('is_billable', true)
                 ->whereHas('matter', fn ($query) => $query
                     ->whereBelongsTo($client)
+                    ->whereIn('id', Matter::query()->visibleTo($user)->select('id'))
                     ->when($matter !== null, fn ($matterQuery) => $matterQuery->whereKey($matter)))
                 ->lockForUpdate()
                 ->get()
@@ -251,6 +267,7 @@ class SaveInvoiceDraft
                 ->where('status', 'billable')
                 ->whereHas('matter', fn ($query) => $query
                     ->whereBelongsTo($client)
+                    ->whereIn('id', Matter::query()->visibleTo($user)->select('id'))
                     ->when($matter !== null, fn ($matterQuery) => $matterQuery->whereKey($matter)))
                 ->lockForUpdate()
                 ->get()

@@ -4,8 +4,10 @@ namespace App\Actions\Payments;
 
 use App\Actions\Audit\RecordAuditEvent;
 use App\Models\Invoice;
+use App\Models\Payment;
 use App\Models\PaymentPlan;
 use App\Models\User;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -18,10 +20,17 @@ class CreatePaymentPlan
     public function handle(array $data, User $user): PaymentPlan
     {
         return DB::transaction(function () use ($data, $user): PaymentPlan {
+            if (! $user->can('managePlan', Payment::class)) {
+                throw new AuthorizationException;
+            }
+
             $invoice = Invoice::query()
                 ->whereKey($data['invoice_id'])
                 ->lockForUpdate()
                 ->firstOrFail();
+            if (! $user->can('view', $invoice)) {
+                throw new AuthorizationException;
+            }
             if ((float) $invoice->balance_due <= 0 || $invoice->paymentPlan()->where('status', 'active')->exists()) {
                 throw ValidationException::withMessages(['invoice_id' => 'This invoice is not eligible for a new payment plan.']);
             }

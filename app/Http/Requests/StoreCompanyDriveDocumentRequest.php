@@ -12,7 +12,7 @@ class StoreCompanyDriveDocumentRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user()?->can('access-administration') ?? false;
+        return $this->user()?->hasPermission('company-files.upload') ?? false;
     }
 
     /**

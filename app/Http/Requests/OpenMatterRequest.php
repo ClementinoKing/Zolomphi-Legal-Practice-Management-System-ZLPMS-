@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\Client;
 use App\Models\GeneralSetting;
+use App\Models\Matter;
 use App\Models\MatterType;
 use App\Models\User;
 use App\Services\PracticeRecordSettings;
@@ -16,7 +17,7 @@ class OpenMatterRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('access-administration') ?? false;
+        return $this->user()?->can('create', Matter::class) ?? false;
     }
 
     /**

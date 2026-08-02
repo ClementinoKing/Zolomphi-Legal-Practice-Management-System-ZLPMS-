@@ -19,13 +19,22 @@ import { index as payments } from '@/routes/payments';
 import type { RouteDefinition } from '@/wayfinder';
 
 type DashboardProps = {
+    sections: {
+        matters: boolean;
+        tasks: boolean;
+        calendar: boolean;
+        billing: boolean;
+        invoices: boolean;
+        payments: boolean;
+        activity: boolean;
+    };
     metrics: {
-        open_matters: number;
-        overdue_deadlines: number;
-        unpaid_invoices: number;
-        outstanding_balance: string;
-        open_tasks: number;
-        overdue_tasks: number;
+        open_matters: number | null;
+        overdue_deadlines: number | null;
+        unpaid_invoices: number | null;
+        outstanding_balance: string | null;
+        open_tasks: number | null;
+        overdue_tasks: number | null;
     };
     deadlines: Array<{
         id: number;
@@ -91,6 +100,7 @@ const dateFormatter = new Intl.DateTimeFormat('en-MW', {
 });
 
 export default function Dashboard({
+    sections,
     metrics,
     deadlines,
     tasks,
@@ -101,28 +111,34 @@ export default function Dashboard({
 }: DashboardProps) {
     const { formatMoney } = useCurrency();
     const stats = [
-        {
-            label: 'Open matters',
-            value: metrics.open_matters,
-            detail: `${metrics.overdue_deadlines} overdue deadline${metrics.overdue_deadlines === 1 ? '' : 's'}`,
-            icon: Scale,
-            tone: 'text-primary',
-        },
-        {
-            label: 'Unpaid invoices',
-            value: metrics.unpaid_invoices,
-            detail: formatMoney(metrics.outstanding_balance),
-            icon: CircleDollarSign,
-            tone: 'text-orange-600',
-        },
-        {
-            label: 'Open tasks',
-            value: metrics.open_tasks,
-            detail: `${metrics.overdue_tasks} overdue`,
-            icon: CheckSquare,
-            tone: 'text-sky-700',
-        },
-    ];
+        sections.matters && metrics.open_matters !== null
+            ? {
+                  label: 'Open matters',
+                  value: metrics.open_matters,
+                  detail: `${metrics.overdue_deadlines ?? 0} overdue deadline${metrics.overdue_deadlines === 1 ? '' : 's'}`,
+                  icon: Scale,
+                  tone: 'text-primary',
+              }
+            : null,
+        sections.invoices && metrics.unpaid_invoices !== null
+            ? {
+                  label: 'Unpaid invoices',
+                  value: metrics.unpaid_invoices,
+                  detail: formatMoney(metrics.outstanding_balance ?? '0'),
+                  icon: CircleDollarSign,
+                  tone: 'text-orange-600',
+              }
+            : null,
+        sections.tasks && metrics.open_tasks !== null
+            ? {
+                  label: 'Open tasks',
+                  value: metrics.open_tasks,
+                  detail: `${metrics.overdue_tasks ?? 0} overdue`,
+                  icon: CheckSquare,
+                  tone: 'text-sky-700',
+              }
+            : null,
+    ].filter((stat): stat is NonNullable<typeof stat> => stat !== null);
 
     return (
         <>
@@ -133,14 +149,16 @@ export default function Dashboard({
                         Practice overview
                     </p>
                     <h1 className="text-2xl font-semibold tracking-tight">
-                        Monitor and control
+                        Your workspace overview
                     </h1>
                     <p className="mt-1 text-sm text-muted-foreground">
-                        A live view of active legal work, billing, deadlines,
-                        and firm activity.
+                        A focused view of the work, deadlines, and information
+                        assigned to your role.
                     </p>
                 </header>
-                <section className="grid gap-4 md:grid-cols-3">
+                <section
+                    className={`grid gap-4 ${stats.length === 1 ? 'md:grid-cols-1' : stats.length === 2 ? 'md:grid-cols-2' : 'md:grid-cols-3'}`}
+                >
                     {stats.map((stat) => (
                         <div
                             key={stat.label}
@@ -163,37 +181,55 @@ export default function Dashboard({
                         </div>
                     ))}
                 </section>
-                <section className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
+                {sections.matters && (
+                    <section className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
+                        {sections.tasks && (
+                            <ComparisonChart
+                                title="Matter intake and task completion"
+                                firstLabel="Matters opened"
+                                secondLabel="Tasks completed"
+                                points={charts.matter_activity.map((point) => ({
+                                    label: point.label,
+                                    first: point.matters,
+                                    second: point.tasks_completed,
+                                }))}
+                            />
+                        )}
+                        <DistributionChart
+                            title="Matter portfolio"
+                            entries={charts.matter_distribution}
+                        />
+                    </section>
+                )}
+                {sections.billing && (
                     <ComparisonChart
-                        title="Matter intake and task completion"
-                        firstLabel="Matters opened"
-                        secondLabel="Tasks completed"
+                        title="Billing workflow"
+                        firstLabel="Invoices issued"
+                        secondLabel="Payments received"
                         points={charts.matter_activity.map((point) => ({
                             label: point.label,
-                            first: point.matters,
-                            second: point.tasks_completed,
+                            first: point.invoices,
+                            second: point.payments,
                         }))}
                     />
-                    <DistributionChart
-                        title="Matter portfolio"
-                        entries={charts.matter_distribution}
-                    />
-                </section>
-                <ComparisonChart
-                    title="Billing workflow"
-                    firstLabel="Invoices issued"
-                    secondLabel="Payments received"
-                    points={charts.matter_activity.map((point) => ({
-                        label: point.label,
-                        first: point.invoices,
-                        second: point.payments,
-                    }))}
-                />
-                <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-                    <Panel
-                        title="Deadlines and tasks"
-                        action={{ title: 'Open calendar', href: calendar() }}
-                    >
+                )}
+                {(sections.matters || sections.tasks || sections.calendar) && (
+                    <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+                        {(sections.matters || sections.tasks) && (
+                            <Panel
+                                title={
+                                    sections.matters && sections.tasks
+                                        ? 'Deadlines and tasks'
+                                        : sections.tasks
+                                          ? 'Assigned tasks'
+                                          : 'Upcoming deadlines'
+                                }
+                                action={
+                                    sections.calendar
+                                        ? { title: 'Open calendar', href: calendar() }
+                                        : undefined
+                                }
+                            >
                         <div className="divide-y">
                             {[
                                 ...deadlines.map((item) => ({
@@ -250,14 +286,24 @@ export default function Dashboard({
                                     </Link>
                                 ))}
                             {deadlines.length + tasks.length === 0 && (
-                                <Empty label="No upcoming tasks or deadlines." />
+                                <Empty
+                                    label={
+                                        sections.matters && sections.tasks
+                                            ? 'No upcoming tasks or deadlines.'
+                                            : sections.tasks
+                                              ? 'No assigned tasks are due soon.'
+                                              : 'No matter deadlines are due soon.'
+                                    }
+                                />
                             )}
-                        </div>
-                    </Panel>
-                    <Panel
-                        title="Upcoming calendar"
-                        action={{ title: 'View calendar', href: calendar() }}
-                    >
+                            </div>
+                            </Panel>
+                        )}
+                        {sections.calendar && (
+                            <Panel
+                                title="Upcoming calendar"
+                                action={{ title: 'View calendar', href: calendar() }}
+                            >
                         <div className="divide-y">
                             {events.map((event) => (
                                 <Link
@@ -293,13 +339,17 @@ export default function Dashboard({
                                 <Empty label="No events scheduled in the next seven days." />
                             )}
                         </div>
-                    </Panel>
-                </section>
-                <section className="grid gap-6 xl:grid-cols-2">
-                    <Panel
-                        title="Recent payments"
-                        action={{ title: 'View payments', href: payments() }}
-                    >
+                            </Panel>
+                        )}
+                    </section>
+                )}
+                {(sections.payments || sections.activity) && (
+                    <section className="grid gap-6 xl:grid-cols-2">
+                        {sections.payments && (
+                            <Panel
+                                title="Recent payments"
+                                action={{ title: 'View payments', href: payments() }}
+                            >
                         <div className="divide-y">
                             {recentPayments.map((payment) => (
                                 <Link
@@ -333,11 +383,13 @@ export default function Dashboard({
                                 <Empty label="No payments have been recorded." />
                             )}
                         </div>
-                    </Panel>
-                    <Panel
-                        title="Recent activity"
-                        action={{ title: 'View audit logs', href: auditLogs() }}
-                    >
+                            </Panel>
+                        )}
+                        {sections.activity && (
+                            <Panel
+                                title="Recent activity"
+                                action={{ title: 'View audit logs', href: auditLogs() }}
+                            >
                         <div className="divide-y">
                             {activity.map((item) => (
                                 <Link
@@ -365,8 +417,10 @@ export default function Dashboard({
                                 <Empty label="No audit activity has been recorded." />
                             )}
                         </div>
-                    </Panel>
-                </section>
+                            </Panel>
+                        )}
+                    </section>
+                )}
             </div>
         </>
     );
@@ -378,19 +432,21 @@ function Panel({
     children,
 }: {
     title: string;
-    action: { title: string; href: RouteDefinition<'get'> };
+    action?: { title: string; href: RouteDefinition<'get'> };
     children: React.ReactNode;
 }) {
     return (
         <section className="rounded-xl border bg-background p-5">
             <div className="mb-2 flex items-center justify-between gap-3">
                 <h2 className="font-semibold">{title}</h2>
-                <Link
-                    href={action.href}
-                    className="text-sm font-medium text-primary hover:underline"
-                >
-                    {action.title}
-                </Link>
+                {action && (
+                    <Link
+                        href={action.href}
+                        className="text-sm font-medium text-primary hover:underline"
+                    >
+                        {action.title}
+                    </Link>
+                )}
             </div>
             {children}
         </section>

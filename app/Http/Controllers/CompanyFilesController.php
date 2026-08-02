@@ -5,6 +5,9 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreCompanyDriveDocumentRequest;
 use App\Models\CompanyDriveFolder;
 use App\Models\Document;
+use App\Models\Matter;
+use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
@@ -16,9 +19,14 @@ class CompanyFilesController extends Controller
 {
     public function index(): Response
     {
+        $user = auth()->user();
+        abort_unless($user instanceof User, 401);
+
         $folders = CompanyDriveFolder::query()
             ->select(['id', 'client_id', 'name', 'library'])
             ->whereNotNull('client_id')
+            ->whereHas('client', fn (Builder $client): Builder => $client->whereHas('matters', fn (Builder $matters): Builder => $matters->whereIn('id', Matter::query()->visibleTo($user)->select('id'))))
+            ->when($user->hasPermission('matters.view.all'), fn ($query) => $query->orWhereNotNull('client_id'))
             ->withCount('documents')
             ->with([
                 'client:id,client_number',
@@ -63,6 +71,7 @@ class CompanyFilesController extends Controller
     public function store(StoreCompanyDriveDocumentRequest $request): RedirectResponse
     {
         $folder = CompanyDriveFolder::query()->findOrFail($request->integer('folder_id'));
+        abort_unless($request->user()->can('upload', $folder), 403);
         $disk = config('filesystems.company_drive_disk');
 
         if (! is_string($disk)) {
@@ -92,6 +101,8 @@ class CompanyFilesController extends Controller
 
     public function download(Document $document): StreamedResponse
     {
+        abort_unless(auth()->user()?->can('view', $document), 403);
+
         return Storage::disk($document->disk)->download(
             $document->path,
             $document->original_filename,
@@ -100,6 +111,8 @@ class CompanyFilesController extends Controller
 
     public function preview(Document $document): StreamedResponse
     {
+        abort_unless(auth()->user()?->can('view', $document), 403);
+
         abort_unless(in_array($document->mime_type, ['image/jpeg', 'image/png', 'image/webp'], true), 404);
 
         return Storage::disk($document->disk)->response(

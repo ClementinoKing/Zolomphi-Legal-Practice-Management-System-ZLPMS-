@@ -7,20 +7,30 @@ use App\Actions\Payments\RecordInvoicePayment;
 use App\Http\Requests\StorePaymentPlanRequest;
 use App\Http\Requests\StorePaymentRequest;
 use App\Models\Invoice;
+use App\Models\Matter;
 use App\Models\Payment;
 use App\Models\PaymentMethod;
 use App\Models\PaymentPlan;
 use App\Models\PaymentPlanInstallment;
+use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class PaymentController extends Controller
 {
-    public function index(): Response
+    public function index(Request $request): Response
     {
+        $user = $request->user();
+        abort_unless($user instanceof User, 401);
+
         return Inertia::render('payments/index', [
             'payments' => Payment::query()
+                ->whereHas('invoice', fn ($invoice) => $invoice
+                    ->whereNull('matter_id')
+                    ->orWhereHas('matter', fn (Builder $matter): Builder => $matter->whereIn('id', Matter::query()->visibleTo($user)->select('id'))))
                 ->with(['invoice.client', 'paymentMethod', 'recorder'])
                 ->latest('received_at')
                 ->get()
@@ -38,6 +48,10 @@ class PaymentController extends Controller
                 ])
                 ->all(),
             'invoices' => Invoice::query()
+                ->where(function ($query) use ($user): void {
+                    $query->whereNull('matter_id')
+                        ->orWhereHas('matter', fn (Builder $matter): Builder => $matter->whereIn('id', Matter::query()->visibleTo($user)->select('id')));
+                })
                 ->with('client')
                 ->where('balance_due', '>', 0)
                 ->orderBy('due_at')
@@ -52,6 +66,9 @@ class PaymentController extends Controller
                 ->all(),
             'paymentMethods' => PaymentMethod::query()->where('is_active', true)->orderBy('sort_order')->get(['id', 'name']),
             'plans' => PaymentPlan::query()
+                ->whereHas('invoice', fn ($invoice) => $invoice
+                    ->whereNull('matter_id')
+                    ->orWhereHas('matter', fn (Builder $matter): Builder => $matter->whereIn('id', Matter::query()->visibleTo($user)->select('id'))))
                 ->with(['invoice.client', 'installments'])
                 ->latest()
                 ->get()

@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\Matter;
+use App\Models\User;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -11,7 +12,14 @@ class StartTimeTrackerRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('access-administration') ?? false;
+        $matter = Matter::query()->find($this->integer('matter_id'));
+
+        $user = $this->user();
+
+        return $matter !== null
+            && $user instanceof User
+            && $user->hasPermission('time-entries.create')
+            && $user->can('view', $matter);
     }
 
     /**

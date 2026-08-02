@@ -13,6 +13,7 @@ use App\Models\InvoiceItem;
 use App\Models\Matter;
 use App\Models\MatterCharge;
 use App\Models\TimeEntry;
+use App\Models\User;
 use App\Services\InvoiceSettings;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -25,10 +26,18 @@ class InvoiceController extends Controller
 {
     public function __construct(private readonly InvoiceSettings $invoiceSettings) {}
 
-    public function index(): Response
+    public function index(Request $request): Response
     {
+        $user = $request->user();
+
+        abort_unless($user instanceof User, 401);
+
         return Inertia::render('invoices/index', [
             'invoices' => Invoice::query()
+                ->where(function ($query) use ($user): void {
+                    $query->whereNull('matter_id')
+                        ->orWhereHas('matter', fn (Builder $matter): Builder => $matter->whereIn('id', Matter::query()->visibleTo($user)->select('id')));
+                })
                 ->with([
                     'client:id,client_number,full_name,organization_name',
                     'matter:id,matter_number,title',
@@ -76,8 +85,15 @@ class InvoiceController extends Controller
 
     public function create(Request $request): Response
     {
+        $user = $request->user();
+        abort_unless($user instanceof User, 401);
+
         $client = Client::query()
             ->where('status', 'active')
+            ->when(
+                ! $user->hasPermission('matters.view.all'),
+                fn (Builder $query): Builder => $query->whereHas('matters', fn (Builder $matters): Builder => $matters->whereIn('id', Matter::query()->visibleTo($user)->select('id'))),
+            )
             ->whereKey($request->integer('client_id'))
             ->first();
         $matter = $client === null
@@ -85,7 +101,7 @@ class InvoiceController extends Controller
             : $client->matters()->whereKey($request->integer('matter_id'))->first();
 
         return Inertia::render('invoices/builder', [
-            ...$this->builderData($client, $matter),
+            ...$this->builderData($client, $matter, null, $user),
             'invoice' => null,
             'mode' => 'create',
         ]);
@@ -103,8 +119,11 @@ class InvoiceController extends Controller
         return to_route('invoices.edit', $invoice);
     }
 
-    public function edit(Invoice $invoice): Response
+    public function edit(Request $request, Invoice $invoice): Response
     {
+        $user = $request->user();
+        abort_unless($user instanceof User, 401);
+
         abort_unless($invoice->status === 'draft', 404);
 
         $invoice->load([
@@ -116,7 +135,7 @@ class InvoiceController extends Controller
         ]);
 
         return Inertia::render('invoices/builder', [
-            ...$this->builderData($invoice->client, $invoice->matter, $invoice),
+            ...$this->builderData($invoice->client, $invoice->matter, $invoice, $user),
             'invoice' => $this->invoicePayload($invoice),
             'mode' => 'edit',
         ]);
@@ -140,7 +159,7 @@ class InvoiceController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function builderData(?Client $selectedClient, ?Matter $selectedMatter, ?Invoice $invoice = null): array
+    private function builderData(?Client $selectedClient, ?Matter $selectedMatter, ?Invoice $invoice, User $user): array
     {
         $currency = $invoice === null
             ? GeneralSetting::query()->value('currency') ?? CurrencyConverter::BaseCurrency
@@ -150,6 +169,10 @@ class InvoiceController extends Controller
         return [
             'clients' => Client::query()
                 ->where('status', 'active')
+                ->when(
+                    ! $user->hasPermission('clients.view') && ! $user->hasPermission('matters.view.all'),
+                    fn (Builder $query): Builder => $query->whereHas('matters', fn (Builder $matters): Builder => $matters->whereIn('id', Matter::query()->visibleTo($user)->select('id'))),
+                )
                 ->orderByRaw('coalesce(organization_name, full_name)')
                 ->get(['id', 'client_number', 'full_name', 'organization_name'])
                 ->map(fn (Client $client): array => [
@@ -163,6 +186,7 @@ class InvoiceController extends Controller
             'matters' => $selectedClient === null
                 ? []
                 : $selectedClient->matters()
+                    ->visibleTo($user)
                     ->orderByDesc('opened_at')
                     ->get(['id', 'matter_number', 'title'])
                     ->map(fn (Matter $matter): array => [

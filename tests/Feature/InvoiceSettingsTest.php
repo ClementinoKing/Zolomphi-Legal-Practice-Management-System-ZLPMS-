@@ -23,7 +23,7 @@ function invoiceSettingsAdministrator(): User
     $user = User::factory()->create();
     $user->roles()->attach($role);
 
-    return $user;
+    return grantAllPracticePermissions($user);
 }
 
 test('administrators can configure invoice tax, numbering, and document template defaults', function () {

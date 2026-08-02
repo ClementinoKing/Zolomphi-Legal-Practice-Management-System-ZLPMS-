@@ -10,7 +10,7 @@ class UpdateInvoiceSettingsRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('access-administration') ?? false;
+        return $this->user()?->hasPermission('invoices.configure') ?? false;
     }
 
     /** @return array<string, ValidationRule|array<mixed>|string> */

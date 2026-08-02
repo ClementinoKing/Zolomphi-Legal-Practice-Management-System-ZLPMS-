@@ -2,7 +2,19 @@
 
 namespace App\Providers;
 
+use App\Models\Client;
+use App\Models\CompanyDriveFolder;
+use App\Models\Document;
+use App\Models\Invoice;
+use App\Models\Matter;
+use App\Models\Payment;
 use App\Models\User;
+use App\Policies\ClientPolicy;
+use App\Policies\CompanyDriveFolderPolicy;
+use App\Policies\DocumentPolicy;
+use App\Policies\InvoicePolicy;
+use App\Policies\MatterPolicy;
+use App\Policies\PaymentPolicy;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
@@ -51,5 +63,11 @@ class AppServiceProvider extends ServiceProvider
 
         Gate::before(fn (User $user, string $ability): ?bool => $user->hasPermission($ability) ? true : null);
         Gate::define('access-administration', fn (User $user): bool => $user->hasPermission('administration.access'));
+        Gate::policy(Client::class, ClientPolicy::class);
+        Gate::policy(CompanyDriveFolder::class, CompanyDriveFolderPolicy::class);
+        Gate::policy(Document::class, DocumentPolicy::class);
+        Gate::policy(Invoice::class, InvoicePolicy::class);
+        Gate::policy(Matter::class, MatterPolicy::class);
+        Gate::policy(Payment::class, PaymentPolicy::class);
     }
 }

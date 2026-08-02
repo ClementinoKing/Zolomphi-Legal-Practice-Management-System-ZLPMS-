@@ -1,6 +1,8 @@
 <?php
 
+use App\Models\Department;
 use App\Models\Permission;
+use App\Models\Position;
 use App\Models\Role;
 use App\Models\User;
 use Database\Seeders\AdministrationSeeder;
@@ -50,4 +52,24 @@ test('the legacy admin role is migrated to firm administrator without losing use
 
     expect(Role::query()->where('name', 'Admin')->exists())->toBeFalse();
     expect($user->refresh()->roles()->pluck('name')->all())->toContain('Firm Administrator');
+});
+
+test('unassigned staff receive a least-privilege role from their position', function () {
+    $department = Department::query()->where('code', 'litigation-dispute-resolution')->firstOrFail();
+    $position = Position::query()->where('code', 'senior-associate-litigation')->firstOrFail();
+    $user = User::factory()->create([
+        'department_id' => $department->id,
+        'position_id' => $position->id,
+    ]);
+
+    $this->seed(AdministrationSeeder::class);
+
+    expect($user->refresh()->roles()->pluck('name')->all())->toBe(['Attorney'])
+        ->and($user->hasPermission('dashboard.view'))->toBeTrue()
+        ->and($user->hasPermission('matters.view.assigned'))->toBeTrue()
+        ->and($user->hasPermission('payments.record'))->toBeFalse();
+
+    $this->actingAs($user)
+        ->get(route('dashboard'))
+        ->assertOk();
 });

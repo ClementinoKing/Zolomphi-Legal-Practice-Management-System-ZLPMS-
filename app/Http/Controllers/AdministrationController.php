@@ -54,11 +54,12 @@ class AdministrationController extends Controller
         ]);
     }
 
-    public function users(): Response
+    public function users(Request $request): Response
     {
         return Inertia::render('administration/users', [
             'users' => $this->usersPayload(),
             'roles' => $this->rolesPayload(),
+            'canDeleteUsers' => $request->user()?->hasPermission('users.delete') ?? false,
             'departments' => Department::query()
                 ->where('is_active', true)
                 ->orderBy('name')
@@ -183,6 +184,33 @@ class AdministrationController extends Controller
         $this->audit->handle($request->user(), 'user.updated', 'Updated user '.$user->name.'.', $user);
 
         return $this->success('User access updated.', 'administration.users.index');
+    }
+
+    public function destroyUser(Request $request, User $user): RedirectResponse
+    {
+        $currentUser = $request->user();
+
+        if ($currentUser !== null && $user->is($currentUser)) {
+            throw ValidationException::withMessages([
+                'user' => 'You cannot delete your own administration account.',
+            ]);
+        }
+
+        $isSuperAdmin = $user->roles()->where('name', 'Super Admin')->exists();
+        $superAdminCount = User::query()
+            ->whereHas('roles', fn ($query) => $query->where('name', 'Super Admin'))
+            ->count();
+
+        if ($isSuperAdmin && $superAdminCount <= 1) {
+            throw ValidationException::withMessages([
+                'user' => 'The last Super Admin account cannot be deleted.',
+            ]);
+        }
+
+        $this->audit->handle($currentUser, 'user.deleted', 'Deleted user '.$user->name.'.');
+        $user->delete();
+
+        return $this->success('User deleted.', 'administration.users.index');
     }
 
     public function storeDepartment(DepartmentRequest $request): RedirectResponse

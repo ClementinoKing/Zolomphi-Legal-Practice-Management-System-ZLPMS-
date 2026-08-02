@@ -28,7 +28,7 @@ function practiceSettingsAdministrator(): User
     $user = User::factory()->create();
     $user->roles()->attach($role);
 
-    return $user;
+    return grantAllPracticePermissions($user);
 }
 
 /** @return array<string, mixed> */

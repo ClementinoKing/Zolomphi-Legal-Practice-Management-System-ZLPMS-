@@ -21,7 +21,7 @@ function globalSearchAdministrator(): User
     $user = User::factory()->create();
     $user->roles()->attach($role);
 
-    return $user;
+    return grantAllPracticePermissions($user);
 }
 
 test('the global search returns matching practice records', function () {

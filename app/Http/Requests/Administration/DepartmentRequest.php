@@ -2,16 +2,16 @@
 
 namespace App\Http\Requests\Administration;
 
+use App\Models\Department;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
-use App\Models\Department;
 
 class DepartmentRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('access-administration') ?? false;
+        return $this->user()?->hasPermission('departments.manage') ?? false;
     }
 
     /** @return array<string, ValidationRule|array<mixed>|string> */

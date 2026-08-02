@@ -2,6 +2,7 @@ import { useHttp, usePage } from '@inertiajs/react';
 import { Pause, Play, Square, Timer, Trash2 } from 'lucide-react';
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import InputError from '@/components/input-error';
+import SearchableSelect from '@/components/searchable-select';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -294,7 +295,7 @@ function TimeTrackerDialog() {
     const { tracker, dialogOpen, setDialogOpen } = useTimeTracker();
 
     return (
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog modal={false} open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogContent className="max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] overflow-x-hidden overflow-y-auto sm:max-w-xl">
                 {tracker === null ? (
                     <StartTimerForm />
@@ -348,25 +349,23 @@ function StartTimerForm() {
             </DialogHeader>
             <div className="grid min-w-0 gap-2">
                 <Label htmlFor="timer-matter">Matter</Label>
-                <select
+                <SearchableSelect
                     id="timer-matter"
                     value={matterId}
                     required
                     disabled={matterOptionsLoading}
-                    onChange={(event) => setMatterId(event.target.value)}
-                    className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm shadow-xs"
-                >
-                    <option value="">
-                        {matterOptionsLoading
+                    placeholder={
+                        matterOptionsLoading
                             ? 'Loading matters…'
-                            : 'Select a matter'}
-                    </option>
-                    {availableMatters.map((matter) => (
-                        <option key={matter.id} value={matter.id}>
-                            {matter.matter_number} · {matter.title}
-                        </option>
-                    ))}
-                </select>
+                            : 'Select a matter'
+                    }
+                    options={availableMatters.map((matter) => ({
+                        value: String(matter.id),
+                        label: `${matter.matter_number} · ${matter.title}`,
+                        searchText: matter.client_name,
+                    }))}
+                    onChange={setMatterId}
+                />
                 <InputError message={errors.matter_id ?? errors.timer} />
             </div>
             {selectedMatter && (

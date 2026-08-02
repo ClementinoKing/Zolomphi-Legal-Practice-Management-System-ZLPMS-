@@ -1,10 +1,11 @@
 import { Form } from '@inertiajs/react';
-import { Pencil, Plus, Search, UsersRound, X } from 'lucide-react';
+import { Pencil, Plus, Search, Trash2, UsersRound, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import AdministrationController from '@/actions/App/Http/Controllers/AdministrationController';
 import InputError from '@/components/input-error';
 import PasswordInput from '@/components/password-input';
 import PasswordStrength from '@/components/password-strength';
+import SearchableSelect from '@/components/searchable-select';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -57,11 +58,13 @@ const defaultTemporaryPassword = '12345678';
 export default function UserManagement({
     users,
     roles,
+    canDeleteUsers,
     departments,
     positions,
 }: {
     users: User[];
     roles: Role[];
+    canDeleteUsers: boolean;
     departments: Department[];
     positions: Position[];
 }) {
@@ -170,6 +173,7 @@ export default function UserManagement({
                 </div>
                 <UserDialog
                     roles={roles}
+                    canDeleteUsers={canDeleteUsers}
                     departments={departments}
                     positions={positions}
                 />
@@ -363,6 +367,7 @@ export default function UserManagement({
                                         <UserDialog
                                             user={user}
                                             roles={roles}
+                                            canDeleteUsers={canDeleteUsers}
                                             departments={departments}
                                             positions={positions}
                                         />
@@ -433,11 +438,13 @@ function DirectoryFilter({
 function UserDialog({
     user,
     roles,
+    canDeleteUsers,
     departments,
     positions,
 }: {
     user?: User;
     roles: Role[];
+    canDeleteUsers: boolean;
     departments: Department[];
     positions: Position[];
 }) {
@@ -451,6 +458,7 @@ function UserDialog({
             ? ''
             : String(user.position_id);
     const [isOpen, setIsOpen] = useState(false);
+    const [isDeleteOpen, setIsDeleteOpen] = useState(false);
     const [departmentId, setDepartmentId] = useState(initialDepartmentId);
     const [positionId, setPositionId] = useState(initialPositionId);
     const [password, setPassword] = useState(defaultTemporaryPassword);
@@ -462,6 +470,7 @@ function UserDialog({
         if (open) {
             setDepartmentId(initialDepartmentId);
             setPositionId(initialPositionId);
+            setIsDeleteOpen(false);
 
             if (!isEditing) {
                 setPassword(defaultTemporaryPassword);
@@ -473,180 +482,249 @@ function UserDialog({
     }
 
     return (
-        <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-            <DialogTrigger asChild>
-                {isEditing ? (
-                    <Button size="sm" variant="outline">
-                        <Pencil />
-                        Edit
-                    </Button>
-                ) : (
-                    <Button>
-                        <Plus />
-                        Add user
-                    </Button>
-                )}
-            </DialogTrigger>
-            <DialogContent className="max-h-[calc(100vh-2rem)] w-[calc(100%-2rem)] overflow-x-hidden overflow-y-auto sm:max-w-2xl">
-                <DialogHeader>
-                    <DialogTitle>
-                        {isEditing ? 'Edit user' : 'Add user'}
-                    </DialogTitle>
-                    <DialogDescription>
-                        {isEditing
-                            ? 'Update the team member details, position, and access.'
-                            : 'Set a temporary password and assign the right access for the new team member.'}
-                    </DialogDescription>
-                </DialogHeader>
-                <Form
-                    key={[
-                        user?.id ?? 'new',
-                        user?.name ?? '',
-                        user?.email ?? '',
-                        user?.phone ?? '',
-                        user?.department_id ?? '',
-                        user?.position_id ?? '',
-                        user?.status ?? '',
-                        user?.role_ids.join('-') ?? '',
-                    ].join(':')}
-                    {...(user
-                        ? AdministrationController.updateUser.form(user)
-                        : AdministrationController.storeUser.form())}
-                    resetOnSuccess
-                    onSuccess={() => setIsOpen(false)}
-                    className="grid min-w-0 gap-5"
-                >
-                    {({ errors, processing }) => (
-                        <>
-                            <div className="grid min-w-0 gap-4 sm:grid-cols-2">
-                                <TextField
-                                    label="Full name"
-                                    name="name"
-                                    error={errors.name}
-                                    defaultValue={user?.name}
-                                    required
-                                />
-                                <TextField
-                                    label="Email address"
-                                    name="email"
-                                    type="email"
-                                    error={errors.email}
-                                    defaultValue={user?.email}
-                                    required
-                                />
-                                <TextField
-                                    label="Phone"
-                                    name="phone"
-                                    error={errors.phone}
-                                    defaultValue={user?.phone ?? undefined}
-                                />
-                                <DepartmentSelect
-                                    departments={departments}
-                                    departmentId={departmentId}
-                                    error={errors.department_id}
-                                    onChange={(value) => {
-                                        setDepartmentId(value);
-                                        setPositionId('');
-                                    }}
-                                />
-                            </div>
-                            <div className="grid min-w-0 gap-4 sm:grid-cols-2">
-                                <PositionSelect
-                                    departmentId={departmentId}
-                                    positionId={positionId}
-                                    positions={positions}
-                                    error={errors.position_id}
-                                    onChange={setPositionId}
-                                />
-                                <div className="grid min-w-0 gap-2">
-                                    <Label htmlFor="new-user-status">
-                                        Status
-                                    </Label>
-                                    <select
-                                        id="new-user-status"
-                                        name="status"
-                                        defaultValue={user?.status ?? 'active'}
-                                        className="h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs"
-                                    >
-                                        <option value="active">Active</option>
-                                        <option value="inactive">
-                                            Inactive
-                                        </option>
-                                    </select>
-                                    <InputError message={errors.status} />
-                                </div>
-                            </div>
-                            {!isEditing && (
-                                <div className="grid min-w-0 gap-4 sm:grid-cols-2">
-                                    <div className="grid min-w-0 gap-2">
-                                        <Label htmlFor="new-user-password">
-                                            Temporary password
-                                        </Label>
-                                        <PasswordInput
-                                            id="new-user-password"
-                                            name="password"
-                                            value={password}
-                                            onChange={(event) =>
-                                                setPassword(event.target.value)
-                                            }
-                                            autoComplete="new-password"
-                                            minLength={8}
-                                            required
-                                        />
-                                        <PasswordStrength password={password} />
-                                        <InputError message={errors.password} />
-                                    </div>
-                                    <div className="grid min-w-0 gap-2">
-                                        <Label htmlFor="new-user-password-confirmation">
-                                            Confirm temporary password
-                                        </Label>
-                                        <PasswordInput
-                                            id="new-user-password-confirmation"
-                                            name="password_confirmation"
-                                            value={passwordConfirmation}
-                                            onChange={(event) =>
-                                                setPasswordConfirmation(
-                                                    event.target.value,
-                                                )
-                                            }
-                                            autoComplete="new-password"
-                                            minLength={8}
-                                            required
-                                        />
-                                        <p className="text-xs text-muted-foreground">
-                                            Defaults to 12345678. The user must
-                                            create a new password at first
-                                            sign-in.
-                                        </p>
-                                        <InputError
-                                            message={
-                                                errors.password_confirmation
-                                            }
-                                        />
-                                    </div>
-                                </div>
-                            )}
-                            <RoleCheckboxes
-                                roles={roles}
-                                error={errors.role_ids}
-                                selectedRoleIds={user?.role_ids ?? []}
-                            />
-                            <DialogFooter>
-                                <DialogClose asChild>
-                                    <Button type="button" variant="outline">
-                                        Cancel
-                                    </Button>
-                                </DialogClose>
-                                <Button disabled={processing}>
-                                    {processing && <Spinner />}
-                                    {isEditing ? 'Save changes' : 'Create user'}
-                                </Button>
-                            </DialogFooter>
-                        </>
+        <>
+            <Dialog modal={false} open={isOpen} onOpenChange={handleOpenChange}>
+                <DialogTrigger asChild>
+                    {isEditing ? (
+                        <Button size="sm" variant="outline">
+                            <Pencil />
+                            Edit
+                        </Button>
+                    ) : (
+                        <Button>
+                            <Plus />
+                            Add user
+                        </Button>
                     )}
-                </Form>
-            </DialogContent>
-        </Dialog>
+                </DialogTrigger>
+                <DialogContent className="max-h-[calc(100vh-2rem)] w-[calc(100%-2rem)] overflow-x-hidden overflow-y-auto sm:max-w-2xl">
+                    <DialogHeader>
+                        <DialogTitle>
+                            {isEditing ? 'Edit user' : 'Add user'}
+                        </DialogTitle>
+                        <DialogDescription>
+                            {isEditing
+                                ? 'Update the team member details, position, and access.'
+                                : 'Set a temporary password and assign the right access for the new team member.'}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <Form
+                        key={[
+                            user?.id ?? 'new',
+                            user?.name ?? '',
+                            user?.email ?? '',
+                            user?.phone ?? '',
+                            user?.department_id ?? '',
+                            user?.position_id ?? '',
+                            user?.status ?? '',
+                            user?.role_ids.join('-') ?? '',
+                        ].join(':')}
+                        {...(user
+                            ? AdministrationController.updateUser.form(user)
+                            : AdministrationController.storeUser.form())}
+                        resetOnSuccess
+                        onSuccess={() => setIsOpen(false)}
+                        className="grid min-w-0 gap-5"
+                    >
+                        {({ errors, processing }) => (
+                            <>
+                                <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+                                    <TextField
+                                        label="Full name"
+                                        name="name"
+                                        error={errors.name}
+                                        defaultValue={user?.name}
+                                        required
+                                    />
+                                    <TextField
+                                        label="Email address"
+                                        name="email"
+                                        type="email"
+                                        error={errors.email}
+                                        defaultValue={user?.email}
+                                        required
+                                    />
+                                    <TextField
+                                        label="Phone"
+                                        name="phone"
+                                        error={errors.phone}
+                                        defaultValue={user?.phone ?? undefined}
+                                    />
+                                    <DepartmentSelect
+                                        departments={departments}
+                                        departmentId={departmentId}
+                                        error={errors.department_id}
+                                        onChange={(value) => {
+                                            setDepartmentId(value);
+                                            setPositionId('');
+                                        }}
+                                    />
+                                </div>
+                                <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+                                    <PositionSelect
+                                        departmentId={departmentId}
+                                        positionId={positionId}
+                                        positions={positions}
+                                        error={errors.position_id}
+                                        onChange={setPositionId}
+                                    />
+                                    <div className="grid min-w-0 gap-2">
+                                        <Label htmlFor="new-user-status">
+                                            Status
+                                        </Label>
+                                        <SearchableSelect
+                                            id="new-user-status"
+                                            name="status"
+                                            defaultValue={
+                                                user?.status ?? 'active'
+                                            }
+                                            options={[
+                                                {
+                                                    value: 'active',
+                                                    label: 'Active',
+                                                },
+                                                {
+                                                    value: 'inactive',
+                                                    label: 'Inactive',
+                                                },
+                                            ]}
+                                            searchable={false}
+                                            error={errors.status}
+                                        />
+                                    </div>
+                                </div>
+                                {!isEditing && (
+                                    <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+                                        <div className="grid min-w-0 gap-2">
+                                            <Label htmlFor="new-user-password">
+                                                Temporary password
+                                            </Label>
+                                            <PasswordInput
+                                                id="new-user-password"
+                                                name="password"
+                                                value={password}
+                                                onChange={(event) =>
+                                                    setPassword(
+                                                        event.target.value,
+                                                    )
+                                                }
+                                                autoComplete="new-password"
+                                                minLength={8}
+                                                required
+                                            />
+                                            <PasswordStrength
+                                                password={password}
+                                            />
+                                            <InputError
+                                                message={errors.password}
+                                            />
+                                        </div>
+                                        <div className="grid min-w-0 gap-2">
+                                            <Label htmlFor="new-user-password-confirmation">
+                                                Confirm temporary password
+                                            </Label>
+                                            <PasswordInput
+                                                id="new-user-password-confirmation"
+                                                name="password_confirmation"
+                                                value={passwordConfirmation}
+                                                onChange={(event) =>
+                                                    setPasswordConfirmation(
+                                                        event.target.value,
+                                                    )
+                                                }
+                                                autoComplete="new-password"
+                                                minLength={8}
+                                                required
+                                            />
+                                            <p className="text-xs text-muted-foreground">
+                                                Defaults to 12345678. The user
+                                                must create a new password at
+                                                first sign-in.
+                                            </p>
+                                            <InputError
+                                                message={
+                                                    errors.password_confirmation
+                                                }
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                                <RoleCheckboxes
+                                    roles={roles}
+                                    error={errors.role_ids}
+                                    selectedRoleIds={user?.role_ids ?? []}
+                                />
+                                <DialogFooter>
+                                    {isEditing && canDeleteUsers && (
+                                        <Button
+                                            type="button"
+                                            variant="destructive"
+                                            className="sm:mr-auto"
+                                            onClick={() => {
+                                                setIsOpen(false);
+                                                setIsDeleteOpen(true);
+                                            }}
+                                        >
+                                            <Trash2 />
+                                            Delete user
+                                        </Button>
+                                    )}
+                                    <DialogClose asChild>
+                                        <Button type="button" variant="outline">
+                                            Cancel
+                                        </Button>
+                                    </DialogClose>
+                                    <Button disabled={processing}>
+                                        {processing && <Spinner />}
+                                        {isEditing
+                                            ? 'Save changes'
+                                            : 'Create user'}
+                                    </Button>
+                                </DialogFooter>
+                            </>
+                        )}
+                    </Form>
+                </DialogContent>
+            </Dialog>
+            {isEditing && canDeleteUsers && (
+                <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+                    <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                            <DialogTitle>Delete user account?</DialogTitle>
+                            <DialogDescription>
+                                This permanently removes {user.name} and their
+                                access to the practice workspace. This action
+                                cannot be undone.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <Form
+                            {...AdministrationController.destroyUser.form(user)}
+                            onSuccess={() => setIsDeleteOpen(false)}
+                            className="grid gap-5"
+                        >
+                            {({ processing }) => (
+                                <DialogFooter>
+                                    <DialogClose asChild>
+                                        <Button type="button" variant="outline">
+                                            Cancel
+                                        </Button>
+                                    </DialogClose>
+                                    <Button
+                                        type="submit"
+                                        variant="destructive"
+                                        disabled={processing}
+                                    >
+                                        {processing && <Spinner />}
+                                        <Trash2 />
+                                        Delete user
+                                    </Button>
+                                </DialogFooter>
+                            )}
+                        </Form>
+                    </DialogContent>
+                </Dialog>
+            )}
+        </>
     );
 }
 
@@ -728,21 +806,21 @@ function DepartmentSelect({
     return (
         <div className="grid min-w-0 gap-2">
             <Label htmlFor="new-user-department">Department</Label>
-            <select
+            <SearchableSelect
                 id="new-user-department"
                 name="department_id"
                 value={departmentId}
-                onChange={(event) => onChange(event.target.value)}
-                className="h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs"
-            >
-                <option value="">No department</option>
-                {departments.map((department) => (
-                    <option key={department.id} value={department.id}>
-                        {department.name}
-                    </option>
-                ))}
-            </select>
-            <InputError message={error} />
+                placeholder="No department"
+                options={[
+                    { value: '', label: 'No department' },
+                    ...departments.map((department) => ({
+                        value: String(department.id),
+                        label: department.name,
+                    })),
+                ]}
+                onChange={onChange}
+                error={error}
+            />
         </div>
     );
 }
@@ -767,26 +845,32 @@ function PositionSelect({
     return (
         <div className="grid min-w-0 gap-2">
             <Label htmlFor="new-user-position">Position</Label>
-            <select
+            <SearchableSelect
                 id="new-user-position"
                 name="position_id"
                 value={positionId}
-                onChange={(event) => onChange(event.target.value)}
                 disabled={departmentId === ''}
-                className="h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs disabled:cursor-not-allowed disabled:opacity-50"
-            >
-                <option value="">
-                    {departmentId === ''
+                placeholder={
+                    departmentId === ''
                         ? 'Select a department first'
-                        : 'No position selected'}
-                </option>
-                {departmentPositions.map((position) => (
-                    <option key={position.id} value={position.id}>
-                        {position.name}
-                    </option>
-                ))}
-            </select>
-            <InputError message={error} />
+                        : 'No position selected'
+                }
+                options={[
+                    {
+                        value: '',
+                        label:
+                            departmentId === ''
+                                ? 'Select a department first'
+                                : 'No position selected',
+                    },
+                    ...departmentPositions.map((position) => ({
+                        value: String(position.id),
+                        label: position.name,
+                    })),
+                ]}
+                onChange={onChange}
+                error={error}
+            />
         </div>
     );
 }

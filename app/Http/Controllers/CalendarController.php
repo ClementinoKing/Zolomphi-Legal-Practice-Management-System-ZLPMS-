@@ -6,6 +6,8 @@ use App\Http\Requests\CalendarIndexRequest;
 use App\Models\Appointment;
 use App\Models\Matter;
 use App\Models\Task;
+use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -14,10 +16,14 @@ class CalendarController extends Controller
 {
     public function index(CalendarIndexRequest $request): Response
     {
+        $user = $request->user();
+        abort_unless($user instanceof User, 401);
+
         $month = Carbon::createFromFormat('Y-m', $request->validated('month', now()->format('Y-m')))->startOfMonth();
         $monthEnd = $month->copy()->endOfMonth();
 
         $appointments = Appointment::query()
+            ->whereHas('matter', fn (Builder $matter): Builder => $matter->whereIn('id', Matter::query()->visibleTo($user)->select('id')))
             ->with(['matter:id,matter_number,title,client_id', 'matter.client:id,full_name,organization_name'])
             ->whereBetween('starts_at', [$month, $monthEnd])
             ->orderBy('starts_at')
@@ -26,6 +32,7 @@ class CalendarController extends Controller
             ->map(fn (Appointment $appointment): array => $this->appointmentEvent($appointment));
 
         $tasks = Task::query()
+            ->whereHas('matter', fn (Builder $matter): Builder => $matter->whereIn('id', Matter::query()->visibleTo($user)->select('id')))
             ->with(['matter:id,matter_number,title,client_id', 'matter.client:id,full_name,organization_name'])
             ->whereNotNull('due_at')
             ->whereBetween('due_at', [$month->toDateString(), $monthEnd->toDateString()])
@@ -34,7 +41,7 @@ class CalendarController extends Controller
             ->toBase()
             ->map(fn (Task $task): array => $this->taskEvent($task));
 
-        $matterDeadlines = Matter::query()
+        $matterDeadlines = Matter::query()->visibleTo($user)
             ->with('client:id,full_name,organization_name')
             ->whereNotNull('deadline_at')
             ->whereBetween('deadline_at', [$month->toDateString(), $monthEnd->toDateString()])

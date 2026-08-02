@@ -2,6 +2,7 @@ import { Form } from '@inertiajs/react';
 import { BriefcaseBusiness, Pencil, Plus } from 'lucide-react';
 import AdministrationController from '@/actions/App/Http/Controllers/AdministrationController';
 import InputError from '@/components/input-error';
+import SearchableSelect from '@/components/searchable-select';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -156,7 +157,7 @@ function PositionDialog({
     const isEditing = position !== undefined;
 
     return (
-        <Dialog>
+        <Dialog modal={false}>
             <DialogTrigger asChild>
                 {isEditing ? (
                     <Button size="sm" variant="outline">
@@ -195,27 +196,24 @@ function PositionDialog({
                                     <Label htmlFor="position-department">
                                         Department
                                     </Label>
-                                    <select
+                                    <SearchableSelect
                                         id="position-department"
                                         name="department_id"
-                                        defaultValue={position?.department_id}
-                                        className="h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs"
+                                        defaultValue={
+                                            position?.department_id
+                                                ? String(position.department_id)
+                                                : ''
+                                        }
+                                        options={departments.map(
+                                            (department) => ({
+                                                value: String(department.id),
+                                                label: department.name,
+                                            }),
+                                        )}
+                                        searchable={departments.length > 8}
+                                        placeholder="Select department"
                                         required
-                                    >
-                                        <option value="">
-                                            Select department
-                                        </option>
-                                        {departments.map((department) => (
-                                            <option
-                                                key={department.id}
-                                                value={department.id}
-                                            >
-                                                {department.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <InputError
-                                        message={errors.department_id}
+                                        error={errors.department_id}
                                     />
                                 </div>
                                 <TextField

@@ -10,7 +10,9 @@ use App\Models\Matter;
 use App\Models\MatterType;
 use App\Models\User;
 use App\Services\PracticeRecordSettings;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -18,10 +20,15 @@ use Inertia\Response;
 
 class MatterController extends Controller
 {
-    public function index(): Response
+    public function index(Request $request): Response
     {
+        $user = $request->user();
+
+        abort_unless($user instanceof User, 401);
+
         return Inertia::render('matters/index', [
             'matters' => Matter::query()
+                ->visibleTo($user)
                 ->with([
                     'client:id,client_number,full_name,organization_name',
                     'matterType:id,name',
@@ -64,7 +71,7 @@ class MatterController extends Controller
                     'attorneys_count' => $matter->attorneys_count,
                 ])
                 ->all(),
-            ...$this->openingData(),
+            ...$this->openingData($user),
         ]);
     }
 
@@ -76,11 +83,15 @@ class MatterController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function openingData(): array
+    private function openingData(User $user): array
     {
         return [
             'clients' => Client::query()
                 ->where('status', 'active')
+                ->when(
+                    ! $user->hasPermission('matters.view.all'),
+                    fn (Builder $query): Builder => $query->whereHas('matters', fn (Builder $matters): Builder => $matters->whereIn('id', Matter::query()->visibleTo($user)->select('id'))),
+                )
                 ->get(['id', 'client_number', 'full_name', 'organization_name', 'type'])
                 ->map(fn (Client $client): array => [
                     'id' => $client->id,
@@ -91,6 +102,10 @@ class MatterController extends Controller
                 ->sortBy('name')
                 ->values(),
             'responsibleUsers' => User::attorneys()
+                ->when(
+                    ! $user->hasPermission('matters.participants.manage'),
+                    fn (Builder $query): Builder => $query->whereKey($user->id),
+                )
                 ->orderBy('name')
                 ->get(['id', 'name', 'email']),
             'matterTypes' => MatterType::query()

@@ -17,7 +17,7 @@ function dashboardAdministrator(): User
     $user = User::factory()->create();
     $user->roles()->attach($role);
 
-    return $user;
+    return grantAllPracticePermissions($user);
 }
 
 test('guests are redirected to the login page', function () {

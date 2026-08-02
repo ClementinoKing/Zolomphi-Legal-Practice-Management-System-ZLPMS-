@@ -7,6 +7,7 @@ use App\Actions\Notifications\SendPracticeAlert;
 use App\Models\Invoice;
 use App\Models\Payment;
 use App\Models\User;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -22,11 +23,18 @@ class RecordInvoicePayment
     public function handle(array $data, User $user): Payment
     {
         return DB::transaction(function () use ($data, $user): Payment {
+            if (! $user->can('record', Payment::class)) {
+                throw new AuthorizationException;
+            }
+
             $invoice = Invoice::query()
                 ->with(['creator:id,name', 'matter.responsibleUser:id,name'])
                 ->whereKey($data['invoice_id'])
                 ->lockForUpdate()
                 ->firstOrFail();
+            if (! $user->can('view', $invoice)) {
+                throw new AuthorizationException;
+            }
             $amount = round((float) $data['amount'], 2);
             if ($amount > (float) $invoice->balance_due) {
                 throw ValidationException::withMessages(['amount' => 'Payment cannot exceed the outstanding balance.']);

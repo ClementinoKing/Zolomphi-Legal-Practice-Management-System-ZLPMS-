@@ -9,7 +9,9 @@ abstract class UpdatePracticeRecordSettingsRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('access-administration') ?? false;
+        return $this->user()?->hasPermission($this instanceof UpdateClientSettingsRequest
+            ? 'clients.configure'
+            : 'matters.configure') ?? false;
     }
 
     /** @return array<string, ValidationRule|array<mixed>|string> */

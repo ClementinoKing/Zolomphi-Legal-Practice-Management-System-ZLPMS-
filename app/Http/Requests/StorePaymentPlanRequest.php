@@ -2,6 +2,9 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Invoice;
+use App\Models\Payment;
+use App\Models\User;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -13,7 +16,14 @@ class StorePaymentPlanRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user()?->can('access-administration') ?? false;
+        $invoice = Invoice::query()->find($this->integer('invoice_id'));
+
+        $user = $this->user();
+
+        return $invoice !== null
+            && $user instanceof User
+            && $user->can('managePlan', Payment::class)
+            && $user->can('view', $invoice);
     }
 
     /**

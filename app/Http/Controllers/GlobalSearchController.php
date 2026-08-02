@@ -26,9 +26,12 @@ class GlobalSearchController extends Controller
             $request->validate(['query' => ['string', 'min:2', 'max:100']]);
         }
 
+        $user = $request->user();
+        abort_unless($user instanceof User, 401);
+
         return Inertia::render('search/index', [
             'query' => $query,
-            'results' => $query === '' ? [] : $this->resultsFor($query),
+            'results' => $query === '' ? [] : $this->resultsFor($user, $query),
         ]);
     }
 
@@ -41,26 +44,33 @@ class GlobalSearchController extends Controller
         $request->merge(['query' => $query]);
         $request->validate(['query' => ['required', 'string', 'min:2', 'max:100']]);
 
-        return response()->json(['results' => $this->resultsFor($query, 3)]);
+        $user = $request->user();
+        abort_unless($user instanceof User, 401);
+
+        return response()->json(['results' => $this->resultsFor($user, $query, 3)]);
     }
 
     /**
      * @return array{clients: array<int, array{id: int, title: string, subtitle: string}>, matters: array<int, array{id: int, title: string, subtitle: string}>, invoices: array<int, array{id: int, title: string, subtitle: string}>, documents: array<int, array{id: int, title: string, subtitle: string}>, users: array<int, array{id: int, title: string, subtitle: string}>}
      */
-    private function resultsFor(string $query, int $limit = 5): array
+    private function resultsFor(User $user, string $query, int $limit = 5): array
     {
         return [
-            'clients' => $this->clients($query, $limit),
-            'matters' => $this->matters($query, $limit),
-            'invoices' => $this->invoices($query, $limit),
-            'documents' => $this->documents($query, $limit),
+            'clients' => $this->clients($user, $query, $limit),
+            'matters' => $this->matters($user, $query, $limit),
+            'invoices' => $this->invoices($user, $query, $limit),
+            'documents' => $this->documents($user, $query, $limit),
             'users' => $this->users($query, $limit),
         ];
     }
 
     /** @return array<int, array{id: int, title: string, subtitle: string}> */
-    private function clients(string $query, int $limit): array
+    private function clients(User $user, string $query, int $limit): array
     {
+        if (! $user->hasPermission('clients.view')) {
+            return [];
+        }
+
         return Client::query()
             ->where(fn (Builder $client): Builder => $client
                 ->where('client_number', 'like', '%'.$query.'%')
@@ -80,9 +90,10 @@ class GlobalSearchController extends Controller
     }
 
     /** @return array<int, array{id: int, title: string, subtitle: string}> */
-    private function matters(string $query, int $limit): array
+    private function matters(User $user, string $query, int $limit): array
     {
         return Matter::query()
+            ->visibleTo($user)
             ->with('client:id,full_name,organization_name')
             ->where(fn (Builder $matter): Builder => $matter
                 ->where('matter_number', 'like', '%'.$query.'%')
@@ -99,9 +110,13 @@ class GlobalSearchController extends Controller
     }
 
     /** @return array<int, array{id: int, title: string, subtitle: string}> */
-    private function invoices(string $query, int $limit): array
+    private function invoices(User $user, string $query, int $limit): array
     {
         return Invoice::query()
+            ->where(function ($invoice) use ($user): void {
+                $invoice->whereNull('matter_id')
+                    ->orWhereHas('matter', fn (Builder $matter): Builder => $matter->whereIn('id', Matter::query()->visibleTo($user)->select('id')));
+            })
             ->with('client:id,full_name,organization_name')
             ->where('invoice_number', 'like', '%'.$query.'%')
             ->latest()
@@ -116,9 +131,23 @@ class GlobalSearchController extends Controller
     }
 
     /** @return array<int, array{id: int, title: string, subtitle: string}> */
-    private function documents(string $query, int $limit): array
+    private function documents(User $user, string $query, int $limit): array
     {
         return Document::query()
+            ->when(
+                ! $user->hasPermission('documents.view.private'),
+                fn (Builder $query): Builder => $query->where(function (Builder $visibility): void {
+                    $visibility->whereNull('matter_id')
+                        ->orWhereNotIn('visibility', ['internal', 'private']);
+                }),
+            )
+            ->where(function ($document) use ($user): void {
+                $document->whereHas('matter', fn (Builder $matter): Builder => $matter->whereIn('id', Matter::query()->visibleTo($user)->select('id')))
+                    ->orWhere(function ($companyDocument) use ($user): void {
+                        $companyDocument->whereNull('matter_id')
+                            ->whereHas('client.matters', fn (Builder $matters): Builder => $matters->whereIn('id', Matter::query()->visibleTo($user)->select('id')));
+                    });
+            })
             ->where(fn (Builder $document): Builder => $document
                 ->where('name', 'like', '%'.$query.'%')
                 ->orWhere('original_filename', 'like', '%'.$query.'%'))

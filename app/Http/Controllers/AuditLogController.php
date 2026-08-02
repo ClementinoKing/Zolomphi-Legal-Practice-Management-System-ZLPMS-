@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\AuditLogIndexRequest;
 use App\Models\ActivityLog;
+use App\Models\Matter;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -12,8 +14,15 @@ class AuditLogController extends Controller
 {
     public function index(AuditLogIndexRequest $request): Response
     {
+        $user = $request->user();
+        abort_unless($user instanceof User, 401);
+
         $filters = $request->validated();
         $logs = ActivityLog::query()
+            ->where(function (Builder $query) use ($user): void {
+                $query->whereNull('matter_id')
+                    ->orWhereHas('matter', fn (Builder $matter): Builder => $matter->whereIn('id', Matter::query()->visibleTo($user)->select('id')));
+            })
             ->with(['user:id,name', 'matter:id,matter_number,title', 'client:id,full_name,organization_name'])
             ->when($filters['search'] ?? null, function (Builder $query, string $search): void {
                 $query->where(function (Builder $searchQuery) use ($search): void {

@@ -10,7 +10,13 @@ class ReferenceDataRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('access-administration') ?? false;
+        return match ($this->route('resource')) {
+            'matter-types' => $this->user()?->hasPermission('matter-types.manage') ?? false,
+            'billing-items' => $this->user()?->hasPermission('billing-items.manage') ?? false,
+            'expense-categories' => $this->user()?->hasPermission('expense-categories.manage') ?? false,
+            'payment-methods' => $this->user()?->hasPermission('payment-methods.manage') ?? false,
+            default => false,
+        };
     }
 
     /**

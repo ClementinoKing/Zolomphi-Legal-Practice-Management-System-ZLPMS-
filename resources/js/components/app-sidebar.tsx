@@ -11,7 +11,6 @@ import {
     ReceiptText,
     KeyRound,
     LayoutGrid,
-    ListTodo,
     Scale,
     ScrollText,
     ShieldCheck,
@@ -45,7 +44,6 @@ import { index as calendar } from '@/routes/calendar';
 import { index as clients } from '@/routes/clients';
 import { edit as clientSettings } from '@/routes/clients/settings';
 import { index as files } from '@/routes/files';
-import { index as internalTasks } from '@/routes/internal-tasks';
 import { index as invoices } from '@/routes/invoices';
 import { edit as invoiceSettings } from '@/routes/invoices/settings';
 import { index as matters } from '@/routes/matters';
@@ -55,9 +53,13 @@ import { index as reports } from '@/routes/reports';
 import type { Auth, NavItem } from '@/types';
 
 export function AppSidebar() {
-    const { auth } = usePage<{ auth: Auth }>().props;
+    const { auth } = usePage<{ auth?: Auth }>().props;
+    const can = (permission: string) =>
+        auth?.permissions?.includes(permission) ?? false;
+    const canAny = (...permissions: string[]) =>
+        permissions.some((permission) => can(permission));
     const practiceNavItems: NavItem[] = [
-        ...(auth.canAccessAdministration
+        ...(can('clients.view')
             ? [
                   {
                       title: 'Clients',
@@ -65,127 +67,223 @@ export function AppSidebar() {
                       icon: BriefcaseBusiness,
                       children: [
                           { title: 'All clients', href: clients() },
-                          { title: 'Client settings', href: clientSettings() },
+                          ...(can('clients.configure')
+                              ? [
+                                    {
+                                        title: 'Client settings',
+                                        href: clientSettings(),
+                                    },
+                                ]
+                              : []),
                       ],
                   },
+              ]
+            : []),
+        ...(canAny(
+            'matters.view.all',
+            'matters.view.department',
+            'matters.view.assigned',
+        )
+            ? [
                   {
                       title: 'Matters',
                       href: matters(),
                       icon: Scale,
                       children: [
                           { title: 'All matters', href: matters() },
-                          { title: 'Matter types', href: matterTypes() },
-                          { title: 'Matter settings', href: matterSettings() },
+                          ...(can('matter-types.manage')
+                              ? [{ title: 'Matter types', href: matterTypes() }]
+                              : []),
+                          ...(can('matters.configure')
+                              ? [
+                                    {
+                                        title: 'Matter settings',
+                                        href: matterSettings(),
+                                    },
+                                ]
+                              : []),
                       ],
                   },
+              ]
+            : []),
+        ...(can('calendar.manage')
+            ? [
                   {
                       title: 'Calendar',
                       href: calendar(),
                       icon: CalendarDays,
                   },
+              ]
+            : []),
+        ...(can('company-files.view')
+            ? [
                   {
                       title: 'Files',
                       href: files(),
                       icon: FolderOpen,
                   },
+              ]
+            : []),
+        ...(can('invoices.view')
+            ? [
                   {
                       title: 'Invoices',
                       href: invoices(),
                       icon: ReceiptText,
                       children: [
                           { title: 'All invoices', href: invoices() },
-                          {
-                              title: 'Invoice settings',
-                              href: invoiceSettings(),
-                          },
+                          ...(can('invoices.configure')
+                              ? [
+                                    {
+                                        title: 'Invoice settings',
+                                        href: invoiceSettings(),
+                                    },
+                                ]
+                              : []),
                       ],
                   },
-                  { title: 'Payments', href: payments(), icon: Wallet },
               ]
+            : []),
+        ...(can('payments.view')
+            ? [{ title: 'Payments', href: payments(), icon: Wallet }]
             : []),
     ];
 
     const monitoringNavItems: NavItem[] = [
-        {
-            title: 'Dashboard',
-            href: dashboard(),
-            icon: LayoutGrid,
-        },
-        {
-            title: 'Internal tasks',
-            href: internalTasks(),
-            icon: ListTodo,
-        },
-        ...(auth.canAccessAdministration
+        ...(can('dashboard.view')
             ? [
                   {
-                      title: 'Reports',
-                      href: reports(),
-                      icon: ChartNoAxesCombined,
-                  },
-                  {
-                      title: 'Audit logs',
-                      href: auditLogs(),
-                      icon: ScrollText,
+                      title: 'Dashboard',
+                      href: dashboard(),
+                      icon: LayoutGrid,
                   },
               ]
             : []),
+        ...(can('reports.view') || can('audit-logs.view')
+            ? [
+                  ...(can('reports.view')
+                      ? [
+                            {
+                                title: 'Reports',
+                                href: reports(),
+                                icon: ChartNoAxesCombined,
+                            },
+                        ]
+                      : []),
+                  ...(can('audit-logs.view')
+                      ? [
+                            {
+                                title: 'Audit logs',
+                                href: auditLogs(),
+                                icon: ScrollText,
+                            },
+                        ]
+                      : []),
+              ]
+            : []),
     ];
-    const firmAdministrationNavItems: NavItem[] = auth.canAccessAdministration
+    const firmAdministrationNavItems: NavItem[] = canAny(
+        'firm-settings.manage',
+        'users.manage',
+        'departments.manage',
+    )
         ? [
-              {
-                  title: 'Firm',
-                  href: firm(),
-                  icon: Building2,
-              },
-              {
-                  title: 'Users',
-                  href: users(),
-                  icon: UsersRound,
-              },
-              {
-                  title: 'Departments',
-                  href: departments(),
-                  icon: BriefcaseBusiness,
-              },
-              {
-                  title: 'Positions',
-                  href: positions(),
-                  icon: Briefcase,
-              },
+              ...(can('firm-settings.manage')
+                  ? [
+                        {
+                            title: 'Firm',
+                            href: firm(),
+                            icon: Building2,
+                        },
+                    ]
+                  : []),
+              ...(can('users.manage')
+                  ? [
+                        {
+                            title: 'Users',
+                            href: users(),
+                            icon: UsersRound,
+                        },
+                    ]
+                  : []),
+              ...(can('departments.manage')
+                  ? [
+                        {
+                            title: 'Departments',
+                            href: departments(),
+                            icon: BriefcaseBusiness,
+                        },
+                    ]
+                  : []),
+              ...(can('departments.manage')
+                  ? [
+                        {
+                            title: 'Positions',
+                            href: positions(),
+                            icon: Briefcase,
+                        },
+                    ]
+                  : []),
           ]
         : [];
-    const accessControlNavItems: NavItem[] = auth.canAccessAdministration
+    const accessControlNavItems: NavItem[] = canAny(
+        'roles.manage',
+        'permissions.manage',
+    )
         ? [
-              {
-                  title: 'Roles',
-                  href: roles(),
-                  icon: ShieldCheck,
-              },
-              {
-                  title: 'Permissions',
-                  href: permissions(),
-                  icon: KeyRound,
-              },
+              ...(can('roles.manage')
+                  ? [
+                        {
+                            title: 'Roles',
+                            href: roles(),
+                            icon: ShieldCheck,
+                        },
+                    ]
+                  : []),
+              ...(can('permissions.manage')
+                  ? [
+                        {
+                            title: 'Permissions',
+                            href: permissions(),
+                            icon: KeyRound,
+                        },
+                    ]
+                  : []),
           ]
         : [];
-    const billingConfigurationNavItems: NavItem[] = auth.canAccessAdministration
+    const billingConfigurationNavItems: NavItem[] = canAny(
+        'billing-items.manage',
+        'expense-categories.manage',
+        'payment-methods.manage',
+    )
         ? [
-              {
-                  title: 'Billing items',
-                  href: billingItems(),
-                  icon: FileText,
-              },
-              {
-                  title: 'Expense categories',
-                  href: expenseCategories(),
-                  icon: Wallet,
-              },
-              {
-                  title: 'Payment methods',
-                  href: paymentMethods(),
-                  icon: CreditCard,
-              },
+              ...(can('billing-items.manage')
+                  ? [
+                        {
+                            title: 'Billing items',
+                            href: billingItems(),
+                            icon: FileText,
+                        },
+                    ]
+                  : []),
+              ...(can('expense-categories.manage')
+                  ? [
+                        {
+                            title: 'Expense categories',
+                            href: expenseCategories(),
+                            icon: Wallet,
+                        },
+                    ]
+                  : []),
+              ...(can('payment-methods.manage')
+                  ? [
+                        {
+                            title: 'Payment methods',
+                            href: paymentMethods(),
+                            icon: CreditCard,
+                        },
+                    ]
+                  : []),
           ]
         : [];
 

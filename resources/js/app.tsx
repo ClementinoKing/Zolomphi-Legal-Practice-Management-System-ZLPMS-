@@ -12,6 +12,8 @@ createInertiaApp({
     title: (title) => (title ? `${title} - ${appName}` : appName),
     layout: (name) => {
         switch (true) {
+            case name.startsWith('errors/'):
+                return undefined;
             case name.startsWith('auth/'):
                 return AuthLayout;
             case name.startsWith('settings/'):

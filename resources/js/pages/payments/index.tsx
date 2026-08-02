@@ -1,6 +1,7 @@
 import { Form, Head } from '@inertiajs/react';
 import { Plus, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import SearchableSelect from '@/components/searchable-select';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -238,7 +239,7 @@ function PaymentDialog({
     const [isOpen, setIsOpen] = useState(false);
 
     return (
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <Dialog modal={false} open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
                 <Button>
                     <Plus />
@@ -261,31 +262,26 @@ function PaymentDialog({
                 >
                     {({ errors, processing }) => (
                         <>
-                            <select
+                            <SearchableSelect
                                 name="invoice_id"
-                                className="h-10 rounded-md border px-3"
                                 required
-                            >
-                                <option value="">Invoice</option>
-                                {invoices.map((i) => (
-                                    <option value={i.id} key={i.id}>
-                                        {i.number} · {i.client} ({i.balance}{' '}
-                                        {i.currency})
-                                    </option>
-                                ))}
-                            </select>
-                            <select
+                                placeholder="Select invoice"
+                                options={invoices.map((invoice) => ({
+                                    value: String(invoice.id),
+                                    label: `${invoice.number} · ${invoice.client} (${invoice.balance} ${invoice.currency})`,
+                                    searchText: invoice.client,
+                                }))}
+                            />
+                            <SearchableSelect
                                 name="payment_method_id"
-                                className="h-10 rounded-md border px-3"
                                 required
-                            >
-                                <option value="">Payment method</option>
-                                {methods.map((m) => (
-                                    <option value={m.id} key={m.id}>
-                                        {m.name}
-                                    </option>
-                                ))}
-                            </select>
+                                placeholder="Select payment method"
+                                searchable={false}
+                                options={methods.map((method) => ({
+                                    value: String(method.id),
+                                    label: method.name,
+                                }))}
+                            />
                             <Input
                                 name="amount"
                                 type="number"
@@ -328,7 +324,7 @@ function PlanDialog({ invoices }: { invoices: Invoice[] }) {
     const [isOpen, setIsOpen] = useState(false);
 
     return (
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <Dialog modal={false} open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
                 <Button variant="outline">Create payment plan</Button>
             </DialogTrigger>
@@ -349,18 +345,16 @@ function PlanDialog({ invoices }: { invoices: Invoice[] }) {
                 >
                     {({ processing }) => (
                         <>
-                            <select
+                            <SearchableSelect
                                 name="invoice_id"
-                                className="h-10 rounded-md border px-3"
                                 required
-                            >
-                                <option value="">Invoice</option>
-                                {invoices.map((i) => (
-                                    <option value={i.id} key={i.id}>
-                                        {i.number} · {i.client}
-                                    </option>
-                                ))}
-                            </select>
+                                placeholder="Select invoice"
+                                options={invoices.map((invoice) => ({
+                                    value: String(invoice.id),
+                                    label: `${invoice.number} · ${invoice.client}`,
+                                    searchText: invoice.client,
+                                }))}
+                            />
                             <Input
                                 name="installment_count"
                                 type="number"

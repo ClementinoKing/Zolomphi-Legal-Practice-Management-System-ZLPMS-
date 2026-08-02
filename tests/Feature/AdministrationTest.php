@@ -43,7 +43,7 @@ function administrationUser(): User
     $user = User::factory()->create();
     $user->roles()->attach($role);
 
-    return $user;
+    return grantAllPracticePermissions($user);
 }
 
 test('the administration entry and legacy catalog redirect to focused pages', function () {
@@ -95,6 +95,7 @@ test('the administration seeder grants the initial firm user super admin access'
     expect(Permission::query()->count())->toBe(count(PracticeAccessCatalog::permissions()));
     expect($initialUser->refresh()->roles()->pluck('name')->all())->toContain('Super Admin');
     expect($initialUser->hasPermission('administration.access'))->toBeTrue();
+    expect($initialUser->hasPermission('users.delete'))->toBeTrue();
 });
 
 test('law-firm departments and positions are available from the database migration', function () {

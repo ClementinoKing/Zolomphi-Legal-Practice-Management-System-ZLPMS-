@@ -5,6 +5,7 @@ import { index as users } from '@/routes/administration/users';
 type Props = {
     users: Parameters<typeof UserManagement>[0]['users'];
     roles: Parameters<typeof UserManagement>[0]['roles'];
+    canDeleteUsers: Parameters<typeof UserManagement>[0]['canDeleteUsers'];
     departments: Parameters<typeof UserManagement>[0]['departments'];
     positions: Parameters<typeof UserManagement>[0]['positions'];
 };
@@ -12,6 +13,7 @@ type Props = {
 export default function Users({
     users: userRecords,
     roles,
+    canDeleteUsers,
     departments,
     positions,
 }: Props) {
@@ -34,6 +36,7 @@ export default function Users({
                 <UserManagement
                     users={userRecords}
                     roles={roles}
+                    canDeleteUsers={canDeleteUsers}
                     departments={departments}
                     positions={positions}
                 />

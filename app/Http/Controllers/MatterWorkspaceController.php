@@ -61,6 +61,17 @@ class MatterWorkspaceController extends Controller
             'expenses.categoryRecord:id,name',
             'charges.billingItem:id,name',
         ]);
+        if (! auth()->user()?->hasPermission('documents.view.private')) {
+            $matter->setRelation(
+                'documents',
+                $matter->documents->reject(
+                    fn (Document $document): bool => in_array($document->visibility, ['internal', 'private'], true),
+                )->values(),
+            );
+        }
+        if (! auth()->user()?->hasPermission('notes.view.internal')) {
+            $matter->setRelation('notes', collect());
+        }
 
         $activity = ActivityLog::query()
             ->whereBelongsTo($matter)
@@ -142,7 +153,7 @@ class MatterWorkspaceController extends Controller
 
     public function completeTask(Matter $matter, Task $task): RedirectResponse
     {
-        abort_unless($task->matter_id === $matter->id, 404);
+        abort_unless($task->matter_id === $matter->id && auth()->user()?->can('view', $matter), 404);
 
         $task->update(['status' => 'completed', 'completed_at' => now()]);
         $this->recordActivity($matter, auth()->user(), 'tasks.completed', 'Completed task: '.$task->title, $task);
@@ -152,7 +163,10 @@ class MatterWorkspaceController extends Controller
 
     public function download(Matter $matter, Document $document): StreamedResponse
     {
-        abort_unless($document->matter_id === $matter->id, 404);
+        abort_unless(
+            $document->matter_id === $matter->id && auth()->user()?->can('view', $document),
+            404,
+        );
 
         return Storage::disk($document->disk)->download($document->path, $document->original_filename);
     }

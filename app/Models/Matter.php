@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Database\Factories\MatterFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -197,6 +198,39 @@ class Matter extends Model
     public function invoices(): HasMany
     {
         return $this->hasMany(Invoice::class);
+    }
+
+    /**
+     * Restrict matters to records visible to a user according to the catalog.
+     *
+     * @param  Builder<Matter>  $query
+     * @return Builder<Matter>
+     */
+    public function scopeVisibleTo(Builder $query, User $user): Builder
+    {
+        if ($user->hasPermission('matters.view.all')) {
+            return $query;
+        }
+
+        if (! $user->hasAnyPermission([
+            'matters.view.assigned',
+            'matters.view.department',
+        ])) {
+            return $query->whereKey(-1);
+        }
+
+        return $query->where(function (Builder $visible) use ($user): void {
+            if ($user->hasPermission('matters.view.assigned')) {
+                $visible
+                    ->where('responsible_user_id', $user->id)
+                    ->orWhereHas('attorneys', fn (Builder $attorneys): Builder => $attorneys->whereKey($user->id));
+            }
+
+            if ($user->hasPermission('matters.view.department') && $user->department_id !== null) {
+                $visible->orWhereHas('responsibleUser', fn (Builder $responsible): Builder => $responsible
+                    ->where('department_id', $user->department_id));
+            }
+        });
     }
 
     /**

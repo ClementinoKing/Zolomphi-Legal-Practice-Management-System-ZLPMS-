@@ -12,7 +12,7 @@ class AuditLogIndexRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user()?->can('access-administration') ?? false;
+        return $this->user()?->hasPermission('audit-logs.view') ?? false;
     }
 
     /**

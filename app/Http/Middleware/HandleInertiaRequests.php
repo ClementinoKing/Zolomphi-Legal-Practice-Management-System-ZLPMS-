@@ -6,6 +6,7 @@ use App\CurrencyConverter;
 use App\Http\Resources\TimeTrackerResource;
 use App\Models\GeneralSetting;
 use App\Models\TimeTracker;
+use App\Support\PracticeAccessCatalog;
 use Illuminate\Http\Request;
 use Illuminate\Notifications\DatabaseNotification;
 use Inertia\Middleware;
@@ -40,12 +41,21 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $user = $request->user();
+        $user?->loadMissing('roles.assignedPermissions');
+        $permissionKeys = collect(array_keys(PracticeAccessCatalog::permissions()))
+            ->filter(fn (string $permission): bool => $user?->hasPermission($permission) ?? false)
+            ->values()
+            ->all();
+        $user?->makeHidden('roles');
+
         return [
             ...parent::share($request),
             'name' => config('app.name'),
             'auth' => [
-                'user' => $request->user(),
-                'canAccessAdministration' => $request->user()?->can('access-administration') ?? false,
+                'user' => $user,
+                'canAccessAdministration' => $user?->can('access-administration') ?? false,
+                'permissions' => $permissionKeys,
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'currency' => function (): array {

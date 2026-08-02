@@ -1,6 +1,8 @@
 import { Form, Link } from '@inertiajs/react';
 import { Check, Plus } from 'lucide-react';
 import { useState } from 'react';
+import SearchableMultiSelect from '@/components/searchable-multi-select';
+import SearchableSelect from '@/components/searchable-select';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -1082,7 +1084,7 @@ function WorkDialog(
     const title = isEditing ? `Edit ${props.label.toLowerCase()}` : props.label;
 
     return (
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog modal={false} open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
                 <Button
                     size={isEditing ? 'sm' : 'default'}
@@ -1158,18 +1160,16 @@ function WorkFields(
     };
     const selectUsers = (name: string, valuesName: string) => (
         <Field label="Assign team members">
-            <select
+            <SearchableMultiSelect
                 name={name}
-                multiple
-                defaultValue={selectedIds(valuesName)}
-                className="min-h-28 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            >
-                {props.users.map((user) => (
-                    <option key={user.id} value={user.id}>
-                        {user.name} · {user.email}
-                    </option>
-                ))}
-            </select>
+                defaultSelectedValues={selectedIds(valuesName)}
+                options={props.users.map((user) => ({
+                    value: String(user.id),
+                    label: `${user.name} · ${user.email}`,
+                    searchText: user.email,
+                }))}
+                placeholder="Choose team members"
+            />
         </Field>
     );
 
@@ -1354,17 +1354,14 @@ function WorkFields(
                     />
                 </Field>
                 <Field label="Attach matter documents">
-                    <select
+                    <SearchableMultiSelect
                         name="document_ids[]"
-                        multiple
-                        className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    >
-                        {props.matter.documents.map((document) => (
-                            <option key={document.id} value={document.id}>
-                                {document.name}
-                            </option>
-                        ))}
-                    </select>
+                        options={props.matter.documents.map((document) => ({
+                            value: String(document.id),
+                            label: document.name,
+                        }))}
+                        placeholder="Choose documents"
+                    />
                 </Field>
             </>
         );
@@ -1438,20 +1435,19 @@ function WorkFields(
                         label="Category"
                         error={error('expense_category_id')}
                     >
-                        <select
+                        <SearchableSelect
                             name="expense_category_id"
                             required
                             defaultValue={value(
                                 'expense_category_id',
                             ).toString()}
-                            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                        >
-                            {props.expenseCategories.map((category) => (
-                                <option key={category.id} value={category.id}>
-                                    {category.name}
-                                </option>
-                            ))}
-                        </select>
+                            options={props.expenseCategories.map(
+                                (category) => ({
+                                    value: String(category.id),
+                                    label: category.name,
+                                }),
+                            )}
+                        />
                     </Field>
                     <Field label="Amount" error={error('amount')}>
                         <Input
@@ -1503,18 +1499,18 @@ function WorkFields(
     return (
         <>
             <Field label="Billing item">
-                <select
+                <SearchableSelect
                     name="billing_item_id"
                     defaultValue={value('billing_item_id').toString()}
-                    className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                >
-                    <option value="">Custom flat fee</option>
-                    {props.billingItems.map((item) => (
-                        <option key={item.id} value={item.id}>
-                            {item.name}
-                        </option>
-                    ))}
-                </select>
+                    placeholder="Custom flat fee"
+                    options={[
+                        { value: '', label: 'Custom flat fee' },
+                        ...props.billingItems.map((item) => ({
+                            value: String(item.id),
+                            label: item.name,
+                        })),
+                    ]}
+                />
             </Field>
             <Field label="Description" error={error('description')}>
                 <Input

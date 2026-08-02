@@ -19,7 +19,7 @@ function passwordChangeAdministrator(): User
     $user = User::factory()->create(['must_change_password' => true]);
     $user->roles()->attach($role);
 
-    return $user;
+    return grantAllPracticePermissions($user);
 }
 
 test('users with a temporary password must create a new password before accessing the workspace', function () {

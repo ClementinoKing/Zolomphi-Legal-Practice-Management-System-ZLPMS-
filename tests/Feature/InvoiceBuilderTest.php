@@ -27,7 +27,7 @@ function invoiceAdministrator(): User
     $user = User::factory()->create();
     $user->roles()->attach($role);
 
-    return $user;
+    return grantAllPracticePermissions($user);
 }
 
 function invoiceMatter(Client $client): Matter

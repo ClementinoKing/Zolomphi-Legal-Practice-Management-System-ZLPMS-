@@ -21,7 +21,7 @@ function timeTrackerUser(): User
     $user = User::factory()->create();
     $user->roles()->attach($role);
 
-    return $user;
+    return grantAllPracticePermissions($user);
 }
 
 test('users can start a personal matter timer and receive it as a shared prop', function () {

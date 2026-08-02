@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\CurrencyConverter;
+use App\Models\Invoice;
 use App\Models\Matter;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -16,7 +17,12 @@ class SaveInvoiceDraftRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user()?->can('access-administration') ?? false;
+        $invoice = $this->route('invoice');
+
+        return $this->user()?->can(
+            $invoice instanceof Invoice ? 'update' : 'create',
+            $invoice instanceof Invoice ? $invoice : Invoice::class,
+        ) ?? false;
     }
 
     /**

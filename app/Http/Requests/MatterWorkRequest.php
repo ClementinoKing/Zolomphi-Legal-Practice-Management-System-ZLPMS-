@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\BillingItem;
 use App\Models\ExpenseCategory;
+use App\Models\Matter;
 use App\Models\User;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -16,7 +17,27 @@ class MatterWorkRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user()?->can('access-administration') ?? false;
+        $user = $this->user();
+        $matter = $this->route('matter');
+
+        if ($user === null || ! $matter instanceof Matter || ! $user->can('view', $matter)) {
+            return false;
+        }
+
+        return match ($this->route('work')) {
+            'tasks' => $user->hasPermission('tasks.manage'),
+            'time-entries' => $user->hasPermission('time-entries.create')
+                && ($this->input('status') !== 'approved' || $user->hasPermission('time-entries.approve')),
+            'documents' => $user->hasPermission('documents.upload')
+                && (! in_array($this->input('visibility'), ['internal', 'private'], true)
+                    || $user->hasPermission('documents.view.private')),
+            'notes' => $user->hasPermission('notes.create'),
+            'emails' => $user->hasPermission('emails.manage'),
+            'calendar-events' => $user->hasPermission('calendar.manage'),
+            'expenses' => $user->hasPermission('expenses.create'),
+            'flat-fees' => $user->hasPermission('flat-fees.create'),
+            default => false,
+        };
     }
 
     /**

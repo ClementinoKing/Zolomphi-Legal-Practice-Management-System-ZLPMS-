@@ -14,6 +14,7 @@ import { useMemo, useState } from 'react';
 import ClientController from '@/actions/App/Http/Controllers/ClientController';
 import { CustomFieldInputs } from '@/components/custom-field-inputs';
 import InputError from '@/components/input-error';
+import SearchableSelect from '@/components/searchable-select';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -541,6 +542,11 @@ function ClientDialog({
                         : ClientController.store.form())}
                     resetOnSuccess
                     className="grid min-w-0 gap-5"
+                    onSubmit={(event) => {
+                        if (currentStep < clientFormSteps.length) {
+                            event.preventDefault();
+                        }
+                    }}
                     onInvalidCapture={(event) => {
                         const step = Number(
                             (event.target as HTMLElement).dataset.clientStep,
@@ -568,27 +574,29 @@ function ClientDialog({
                                         <Label htmlFor="client-type">
                                             Client type
                                         </Label>
-                                        <select
+                                        <SearchableSelect
                                             id="client-type"
                                             name="type"
                                             value={clientType}
-                                            data-client-step="1"
-                                            onChange={(event) =>
+                                            dataStep={1}
+                                            options={[
+                                                {
+                                                    value: 'organization',
+                                                    label: 'Organization',
+                                                },
+                                                {
+                                                    value: 'individual',
+                                                    label: 'Individual',
+                                                },
+                                            ]}
+                                            searchable={false}
+                                            onChange={(nextValue) =>
                                                 setClientType(
-                                                    event.target
-                                                        .value as Client['client_type'],
+                                                    nextValue as Client['client_type'],
                                                 )
                                             }
-                                            className="h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs"
-                                        >
-                                            <option value="organization">
-                                                Organization
-                                            </option>
-                                            <option value="individual">
-                                                Individual
-                                            </option>
-                                        </select>
-                                        <InputError message={errors.type} />
+                                            error={errors.type}
+                                        />
                                     </div>
                                     <TextField
                                         label="Client or organization name"
@@ -750,23 +758,28 @@ function ClientDialog({
                                     <Label htmlFor="client-status">
                                         Status
                                     </Label>
-                                    <select
+                                    <SearchableSelect
                                         id="client-status"
                                         name="status"
-                                        data-client-step="3"
                                         defaultValue={
                                             client?.is_active === false
                                                 ? 'inactive'
                                                 : 'active'
                                         }
-                                        className="h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs"
-                                    >
-                                        <option value="active">Active</option>
-                                        <option value="inactive">
-                                            Inactive
-                                        </option>
-                                    </select>
-                                    <InputError message={errors.status} />
+                                        dataStep={3}
+                                        options={[
+                                            {
+                                                value: 'active',
+                                                label: 'Active',
+                                            },
+                                            {
+                                                value: 'inactive',
+                                                label: 'Inactive',
+                                            },
+                                        ]}
+                                        searchable={false}
+                                        error={errors.status}
+                                    />
                                 </div>
                             </section>
                             <DialogFooter>
@@ -795,11 +808,16 @@ function ClientDialog({
                                         clientFormSteps.length ? (
                                             <Button
                                                 type="button"
-                                                onClick={() =>
-                                                    setCurrentStep(
-                                                        (step) => step + 1,
-                                                    )
-                                                }
+                                                formNoValidate
+                                                onClick={(event) => {
+                                                    event.preventDefault();
+                                                    setCurrentStep((step) =>
+                                                        Math.min(
+                                                            clientFormSteps.length,
+                                                            step + 1,
+                                                        ),
+                                                    );
+                                                }}
                                             >
                                                 Continue
                                                 <ChevronRight />

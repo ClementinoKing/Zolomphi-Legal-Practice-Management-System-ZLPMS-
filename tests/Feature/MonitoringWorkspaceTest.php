@@ -26,7 +26,7 @@ function monitoringAdministrator(): User
     $user = User::factory()->create();
     $user->roles()->attach($role);
 
-    return $user;
+    return grantAllPracticePermissions($user);
 }
 
 test('administrators see live dashboard and reporting metrics', function () {
@@ -125,6 +125,52 @@ test('administrators see live dashboard and reporting metrics', function () {
         ->where('summary.payments_collected', number_format($periodPaymentsBefore + 400, 2, '.', ''))
         ->where('activity_trend.0.tasks_completed', $periodCompletedTasksBefore + 1)
         ->has('activity_trend'));
+});
+
+test('dashboard payload is limited to the signed-in role', function () {
+    $permissions = Permission::query()->insertGetId([
+        'key' => 'dashboard.view',
+        'name' => 'View dashboard',
+        'group' => 'Monitoring',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+    $role = Role::query()->create(['name' => 'Matter dashboard role']);
+    $role->assignedPermissions()->attach([
+        $permissions,
+        Permission::query()->create([
+            'key' => 'matters.view.assigned',
+            'name' => 'View assigned matters',
+            'group' => 'Matters',
+        ])->id,
+        Permission::query()->create([
+            'key' => 'tasks.manage',
+            'name' => 'Manage tasks',
+            'group' => 'Legal work',
+        ])->id,
+        Permission::query()->create([
+            'key' => 'calendar.manage',
+            'name' => 'Manage calendar',
+            'group' => 'Legal work',
+        ])->id,
+    ]);
+    $user = User::factory()->create();
+    $user->roles()->attach($role);
+
+    $this->actingAs($user)
+        ->get(route('dashboard'))
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('sections.matters', true)
+            ->where('sections.tasks', true)
+            ->where('sections.calendar', true)
+            ->where('sections.billing', false)
+            ->where('sections.payments', false)
+            ->where('sections.activity', false)
+            ->whereNull('metrics.unpaid_invoices')
+            ->whereNull('metrics.outstanding_balance')
+            ->has('payments', 0)
+            ->has('events', 0)
+            ->has('activity', 0));
 });
 
 test('audit logs remain restricted to administrators and can be filtered', function () {

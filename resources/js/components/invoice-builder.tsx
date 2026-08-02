@@ -2,6 +2,7 @@ import { Link, router, useForm } from '@inertiajs/react';
 import { CircleAlert, FilePlus2, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useMemo } from 'react';
 import type { FormEvent, ReactNode } from 'react';
+import SearchableSelect from '@/components/searchable-select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -257,51 +258,50 @@ export default function InvoiceBuilder(props: Props) {
 
             <section className="grid gap-4 rounded-xl border border-border/70 bg-background p-4 md:grid-cols-2 lg:grid-cols-4">
                 <Field label="Client" error={form.errors.client_id}>
-                    <select
-                        className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-xs disabled:cursor-not-allowed disabled:opacity-60"
-                        value={form.data.client_id ?? ''}
+                    <SearchableSelect
+                        value={
+                            form.data.client_id === null
+                                ? ''
+                                : String(form.data.client_id)
+                        }
                         disabled={props.mode === 'edit'}
+                        options={props.clients.map((client) => ({
+                            value: String(client.id),
+                            label: `${client.name} · ${client.client_number}`,
+                            searchText: client.client_number,
+                        }))}
                         onChange={(event) => {
                             const clientId =
-                                event.target.value === ''
-                                    ? null
-                                    : Number(event.target.value);
+                                event === '' ? null : Number(event);
                             form.setData('client_id', clientId);
                             form.setData('matter_id', null);
                             form.setData('items', []);
                             changeContext(clientId, null);
                         }}
-                    >
-                        <option value="">Select client</option>
-                        {props.clients.map((client) => (
-                            <option key={client.id} value={client.id}>
-                                {client.name} · {client.client_number}
-                            </option>
-                        ))}
-                    </select>
+                    />
                 </Field>
                 <Field label="Matter (optional)" error={form.errors.matter_id}>
-                    <select
-                        className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-xs disabled:cursor-not-allowed disabled:opacity-60"
-                        value={form.data.matter_id ?? ''}
+                    <SearchableSelect
+                        value={
+                            form.data.matter_id === null
+                                ? ''
+                                : String(form.data.matter_id)
+                        }
                         disabled={!hasSelectedClient || props.mode === 'edit'}
+                        options={props.matters.map((matter) => ({
+                            value: String(matter.id),
+                            label: `${matter.matter_number} · ${matter.title}`,
+                            searchText: matter.matter_number,
+                        }))}
+                        placeholder="All client matters"
                         onChange={(event) => {
                             const matterId =
-                                event.target.value === ''
-                                    ? null
-                                    : Number(event.target.value);
+                                event === '' ? null : Number(event);
                             form.setData('matter_id', matterId);
                             form.setData('items', []);
                             changeContext(form.data.client_id, matterId);
                         }}
-                    >
-                        <option value="">All client matters</option>
-                        {props.matters.map((matter) => (
-                            <option key={matter.id} value={matter.id}>
-                                {matter.matter_number} · {matter.title}
-                            </option>
-                        ))}
-                    </select>
+                    />
                 </Field>
                 <Field label="Invoice date" error={form.errors.issued_at}>
                     <Input

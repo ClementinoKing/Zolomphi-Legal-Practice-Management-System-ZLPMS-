@@ -6,10 +6,11 @@ import {
     Trash2,
     UsersRound,
 } from 'lucide-react';
-import { useState } from 'react';
+import { Children, isValidElement, useState } from 'react';
 import MatterController from '@/actions/App/Http/Controllers/MatterController';
 import { CustomFieldInputs } from '@/components/custom-field-inputs';
 import InputError from '@/components/input-error';
+import SearchableSelect from '@/components/searchable-select';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -131,6 +132,11 @@ export default function OpenMatterForm({
             {...MatterController.store.form()}
             resetOnSuccess
             className="grid min-w-0 gap-6"
+            onSubmit={(event) => {
+                if (step < steps.length) {
+                    event.preventDefault();
+                }
+            }}
             onSuccess={() => {
                 resetWizard();
                 onSuccess?.();
@@ -449,10 +455,14 @@ export default function OpenMatterForm({
                         {step < 3 ? (
                             <Button
                                 type="button"
+                                formNoValidate
                                 disabled={!canContinue}
-                                onClick={() =>
-                                    setStep((current) => current + 1)
-                                }
+                                onClick={(event) => {
+                                    event.preventDefault();
+                                    setStep((current) =>
+                                        Math.min(steps.length, current + 1),
+                                    );
+                                }}
                             >
                                 Continue
                                 <ChevronRight />
@@ -570,21 +580,42 @@ function SelectField({
     defaultValue?: string;
     onChange?: (event: React.ChangeEvent<HTMLSelectElement>) => void;
 }) {
+    const options = Children.toArray(children).flatMap((child) => {
+        if (!isValidElement<{ value?: string; children?: unknown }>(child)) {
+            return [];
+        }
+
+        const optionValue = child.props.value;
+        const optionLabel = child.props.children;
+
+        if (
+            typeof optionValue !== 'string' ||
+            typeof optionLabel !== 'string'
+        ) {
+            return [];
+        }
+
+        return [{ value: optionValue, label: optionLabel }];
+    });
+
     return (
         <div className="grid min-w-0 gap-2">
             <Label htmlFor={`matter-${name}`}>{label}</Label>
-            <select
+            <SearchableSelect
                 id={`matter-${name}`}
                 name={name}
                 required={required}
                 value={value}
                 defaultValue={defaultValue}
-                onChange={onChange}
-                className="h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs"
-            >
-                {children}
-            </select>
-            <InputError message={error} />
+                options={options}
+                searchable={options.length > 8}
+                onChange={(nextValue) =>
+                    onChange?.({
+                        target: { value: nextValue },
+                    } as React.ChangeEvent<HTMLSelectElement>)
+                }
+                error={error}
+            />
         </div>
     );
 }

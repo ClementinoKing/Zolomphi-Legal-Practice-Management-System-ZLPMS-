@@ -1,5 +1,6 @@
 import { Form, Head } from '@inertiajs/react';
-import InputError from '@/components/input-error';
+import { useEffect, useRef } from 'react';
+import { toast } from 'sonner';
 import PasswordInput from '@/components/password-input';
 import TextLink from '@/components/text-link';
 import { Button } from '@/components/ui/button';
@@ -15,6 +16,44 @@ type Props = {
     canResetPassword: boolean;
 };
 
+type LoginErrors = Record<string, string>;
+
+function LoginErrorToasts({ errors }: { errors: LoginErrors }): null {
+    const lastToastKey = useRef('');
+
+    useEffect(() => {
+        const messages = Object.values(errors).filter(
+            (message): message is string =>
+                typeof message === 'string' && message.trim().length > 0,
+        );
+        const toastKey = messages.join('\n');
+
+        if (!toastKey) {
+            lastToastKey.current = '';
+
+            return;
+        }
+
+        if (toastKey === lastToastKey.current) {
+            return;
+        }
+
+        lastToastKey.current = toastKey;
+
+        if (messages.length === 1) {
+            toast.error(messages[0]);
+
+            return;
+        }
+
+        toast.error('Unable to sign in', {
+            description: messages.join(' '),
+        });
+    }, [errors]);
+
+    return null;
+}
+
 export default function Login({ status, canResetPassword }: Props) {
     return (
         <>
@@ -27,6 +66,8 @@ export default function Login({ status, canResetPassword }: Props) {
             >
                 {({ processing, errors }) => (
                     <>
+                        <LoginErrorToasts errors={errors} />
+
                         <div className="grid gap-6">
                             <div className="grid gap-2">
                                 <Label htmlFor="email">Email address</Label>
@@ -39,8 +80,8 @@ export default function Login({ status, canResetPassword }: Props) {
                                     tabIndex={1}
                                     autoComplete="email"
                                     placeholder="email@example.com"
+                                    aria-invalid={Boolean(errors.email)}
                                 />
-                                <InputError message={errors.email} />
                             </div>
 
                             <div className="grid gap-2">
@@ -63,8 +104,8 @@ export default function Login({ status, canResetPassword }: Props) {
                                     tabIndex={2}
                                     autoComplete="current-password"
                                     placeholder="Password"
+                                    aria-invalid={Boolean(errors.password)}
                                 />
-                                <InputError message={errors.password} />
                             </div>
 
                             <div className="flex items-center space-x-3">

@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Client;
 use App\Models\GeneralSetting;
 use App\Services\PracticeRecordSettings;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -13,7 +14,12 @@ class ClientRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('access-administration') ?? false;
+        $user = $this->user();
+        $client = $this->route('client');
+
+        return $this->isMethod('POST')
+            ? ($user?->can('create', Client::class) ?? false)
+            : ($client instanceof Client && ($user?->can('update', $client) ?? false));
     }
 
     /**

@@ -1,5 +1,9 @@
 <?php
 
+use App\Models\Permission;
+use App\Models\Role;
+use App\Models\User;
+use App\Support\PracticeAccessCatalog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -47,4 +51,21 @@ expect()->extend('toBeOne', function () {
 function something()
 {
     // ..
+}
+
+function grantAllPracticePermissions(User $user): User
+{
+    $permissions = collect(PracticeAccessCatalog::permissions())
+        ->map(fn (array $attributes, string $key): Permission => Permission::query()->updateOrCreate(
+            ['key' => $key],
+            $attributes,
+        ));
+    $role = Role::query()->firstOrCreate(
+        ['name' => 'Test Super Admin'],
+        ['description' => 'Full access for feature-test administrators.'],
+    );
+    $role->assignedPermissions()->sync($permissions->pluck('id')->all());
+    $user->roles()->sync([$role->id]);
+
+    return $user;
 }
