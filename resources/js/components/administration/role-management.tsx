@@ -5,13 +5,6 @@ import InputError from '@/components/input-error';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
-import {
     Dialog,
     DialogClose,
     DialogContent,
@@ -49,63 +42,90 @@ export default function RoleManagement({
     permissions: Permission[];
 }) {
     return (
-        <Card>
-            <CardHeader className="gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <section className="grid gap-5">
+            <header className="flex flex-col gap-4 border-b pb-5 sm:flex-row sm:items-start sm:justify-between">
                 <div className="grid gap-1">
-                    <CardTitle>Roles</CardTitle>
-                    <CardDescription>
+                    <p className="text-sm text-muted-foreground">
                         {roles.length} role{roles.length === 1 ? '' : 's'}{' '}
                         bundle access for your team.
-                    </CardDescription>
+                    </p>
                 </div>
                 <CreateRoleDialog permissions={permissions} />
-            </CardHeader>
-            <CardContent>
-                <div className="grid gap-3 lg:grid-cols-2">
-                    {roles.length === 0 ? (
-                        <div className="rounded-lg border border-dashed px-4 py-10 text-center text-sm text-muted-foreground lg:col-span-2">
-                            <ShieldCheck className="mx-auto mb-3 size-5" />
-                            No roles have been configured yet.
-                        </div>
-                    ) : (
-                        roles.map((role) => (
-                            <div
-                                key={role.id}
-                                className="rounded-lg border p-4"
-                            >
-                                <div className="flex items-center justify-between gap-3">
-                                    <p className="font-medium">{role.name}</p>
-                                    <Badge variant="secondary">
-                                        {role.user_count} users
-                                    </Badge>
-                                </div>
-                                {role.description && (
-                                    <p className="mt-1 text-sm text-muted-foreground">
-                                        {role.description}
-                                    </p>
-                                )}
-                                <div className="mt-3 flex flex-wrap gap-1">
-                                    {role.permissions.length === 0 ? (
-                                        <span className="text-sm text-muted-foreground">
-                                            No permissions assigned
-                                        </span>
-                                    ) : (
-                                        role.permissions.map((permission) => (
-                                            <Badge
-                                                key={permission.key}
-                                                variant="outline"
-                                            >
-                                                {permission.key}
-                                            </Badge>
-                                        ))
-                                    )}
-                                </div>
-                            </div>
-                        ))
-                    )}
-                </div>
-            </CardContent>
-        </Card>
+            </header>
+            <div className="overflow-x-auto rounded-xl border border-border/70 bg-background">
+                <table className="w-full min-w-200 text-left text-sm">
+                    <thead className="bg-muted/50 text-xs tracking-wide text-muted-foreground uppercase">
+                        <tr>
+                            <th scope="col" className="px-4 py-3 font-medium">
+                                Role
+                            </th>
+                            <th scope="col" className="px-4 py-3 font-medium">
+                                Permissions
+                            </th>
+                            <th scope="col" className="px-4 py-3 font-medium">
+                                Assigned users
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                        {roles.length === 0 ? (
+                            <tr>
+                                <td
+                                    colSpan={3}
+                                    className="px-4 py-12 text-center text-muted-foreground"
+                                >
+                                    <ShieldCheck className="mx-auto mb-3 size-5" />
+                                    No roles have been configured yet.
+                                </td>
+                            </tr>
+                        ) : (
+                            roles.map((role) => (
+                                <tr
+                                    key={role.id}
+                                    className="transition-colors hover:bg-muted/30"
+                                >
+                                    <td className="px-4 py-3 align-top">
+                                        <p className="font-medium">
+                                            {role.name}
+                                        </p>
+                                        {role.description && (
+                                            <p className="mt-0.5 max-w-lg text-muted-foreground">
+                                                {role.description}
+                                            </p>
+                                        )}
+                                    </td>
+                                    <td className="px-4 py-3 align-top">
+                                        <div className="flex flex-wrap gap-1">
+                                            {role.permissions.length === 0 ? (
+                                                <span className="text-sm text-muted-foreground">
+                                                    No permissions assigned
+                                                </span>
+                                            ) : (
+                                                role.permissions.map(
+                                                    (permission) => (
+                                                        <Badge
+                                                            key={permission.key}
+                                                            variant="outline"
+                                                        >
+                                                            {permission.key}
+                                                        </Badge>
+                                                    ),
+                                                )
+                                            )}
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-3 align-top">
+                                        <Badge variant="secondary">
+                                            {role.user_count} users
+                                        </Badge>
+                                    </td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        </section>
     );
 }
 

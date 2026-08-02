@@ -2,11 +2,11 @@
 
 namespace App\Http\Requests\Administration;
 
+use App\Models\Department;
+use App\Models\Position;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
-use App\Models\Department;
-use App\Models\Position;
 
 class PositionRequest extends FormRequest
 {
@@ -36,6 +36,7 @@ class PositionRequest extends FormRequest
             ],
             'description' => ['nullable', 'string', 'max:1000'],
             'is_active' => ['required', 'boolean'],
+            'is_attorney' => ['required', 'boolean'],
         ];
     }
 }

@@ -6,9 +6,10 @@ namespace App\Models;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
@@ -30,8 +31,9 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property Carbon|null $updated_at
  * @property int|null $department_id
  * @property int|null $position_id
+ * @property bool $must_change_password
  */
-#[Fillable(['name', 'email', 'password', 'phone', 'department', 'department_id', 'position_id', 'status', 'avatar_path', 'notification_settings', 'session_timeout'])]
+#[Fillable(['name', 'email', 'password', 'phone', 'department', 'department_id', 'position_id', 'status', 'avatar_path', 'notification_settings', 'session_timeout', 'must_change_password'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements PasskeyUser
 {
@@ -51,6 +53,7 @@ class User extends Authenticatable implements PasskeyUser
             'two_factor_confirmed_at' => 'datetime',
             'notification_settings' => 'array',
             'password_changed_at' => 'datetime',
+            'must_change_password' => 'boolean',
         ];
     }
 
@@ -82,6 +85,21 @@ class User extends Authenticatable implements PasskeyUser
     public function assignedPosition(): BelongsTo
     {
         return $this->belongsTo(Position::class, 'position_id');
+    }
+
+    /**
+     * Limit a query to active users in an active attorney position.
+     *
+     * @param  Builder<User>  $query
+     * @return Builder<User>
+     */
+    public function scopeAttorneys(Builder $query): Builder
+    {
+        return $query
+            ->where('status', 'active')
+            ->whereHas('assignedPosition', fn (Builder $position): Builder => $position
+                ->where('is_active', true)
+                ->where('is_attorney', true));
     }
 
     /**

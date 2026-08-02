@@ -1,0 +1,256 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+PROJECT_DIRECTORY="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ENVIRONMENT_FILE="$PROJECT_DIRECTORY/.env"
+DRY_RUN=false
+SEED=false
+
+usage() {
+    cat <<'USAGE'
+Usage: hostinger-deploy [--dry-run] [--seed]
+
+Builds and releases this Laravel application to the Hostinger paths configured
+in .env. A normal release runs migrations and refreshes Laravel caches without
+changing Laravel maintenance mode. Seeding is never automatic; pass --seed only
+when a production seed is intended.
+USAGE
+}
+
+read_environment_value() {
+    local key="$1"
+    local line
+    local value
+
+    line="$(grep -E "^[[:space:]]*(export[[:space:]]+)?${key}=" "$ENVIRONMENT_FILE" | tail -n 1 || true)"
+    value="${line#*=}"
+    value="${value%$'\r'}"
+
+    if [[ "$value" == \"*\" && "$value" == *\" ]]; then
+        value="${value:1:${#value}-2}"
+    elif [[ "$value" == \'*\' && "$value" == *\' ]]; then
+        value="${value:1:${#value}-2}"
+    fi
+
+    printf '%s' "$value"
+}
+
+load_environment_value() {
+    local key="$1"
+
+    if [[ -z "${!key:-}" ]]; then
+        printf -v "$key" '%s' "$(read_environment_value "$key")"
+        export "$key"
+    fi
+}
+
+run_local() {
+    if [[ "$DRY_RUN" == true ]]; then
+        printf '+ '
+        printf '%q ' "$@"
+        printf '\n'
+        return
+    fi
+
+    "$@"
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --dry-run)
+            DRY_RUN=true
+            ;;
+        --seed)
+            SEED=true
+            ;;
+        --help|-h)
+            usage
+            exit 0
+            ;;
+        *)
+            printf 'Unknown option: %s\n' "$1" >&2
+            usage >&2
+            exit 1
+            ;;
+    esac
+    shift
+done
+
+if [[ ! -f "$ENVIRONMENT_FILE" ]]; then
+    printf 'Missing %s. Add the project Hostinger settings before deploying.\n' "$ENVIRONMENT_FILE" >&2
+    exit 1
+fi
+
+for variable in \
+    HOSTINGER_SSH_HOST \
+    HOSTINGER_SSH_PORT \
+    HOSTINGER_SSH_USER \
+    HOSTINGER_HOME_DIRECTORY \
+    HOSTINGER_DOMAINS_DIRECTORY \
+    HOSTINGER_DOMAIN \
+    HOSTINGER_APP_DIRECTORY \
+    HOSTINGER_PUBLIC_DIRECTORY \
+    HOSTINGER_PHP_BINARY; do
+    load_environment_value "$variable"
+
+    if [[ -z "${!variable}" ]]; then
+        printf 'Missing %s in %s.\n' "$variable" "$ENVIRONMENT_FILE" >&2
+        exit 1
+    fi
+done
+
+for path_variable in HOSTINGER_HOME_DIRECTORY HOSTINGER_DOMAINS_DIRECTORY HOSTINGER_APP_DIRECTORY HOSTINGER_PUBLIC_DIRECTORY HOSTINGER_PHP_BINARY; do
+    value="${!path_variable}"
+
+    if [[ ! "$value" =~ ^[A-Za-z0-9_./-]+$ || "$value" == *..* ]]; then
+        printf '%s contains unsupported path characters.\n' "$path_variable" >&2
+        exit 1
+    fi
+done
+
+if [[ ! "$HOSTINGER_SSH_PORT" =~ ^[0-9]{1,5}$ ]] || (( HOSTINGER_SSH_PORT < 1 || HOSTINGER_SSH_PORT > 65535 )); then
+    printf 'HOSTINGER_SSH_PORT must be a valid TCP port number.\n' >&2
+    exit 1
+fi
+
+if [[ "$HOSTINGER_HOME_DIRECTORY" != /* ]]; then
+    printf 'HOSTINGER_HOME_DIRECTORY must be an absolute path.\n' >&2
+    exit 1
+fi
+
+if [[ "$HOSTINGER_DOMAINS_DIRECTORY" != /* ]]; then
+    HOSTINGER_DOMAINS_DIRECTORY="$HOSTINGER_HOME_DIRECTORY/$HOSTINGER_DOMAINS_DIRECTORY"
+fi
+
+if [[ "$HOSTINGER_APP_DIRECTORY" != /* ]]; then
+    HOSTINGER_APP_DIRECTORY="$HOSTINGER_DOMAINS_DIRECTORY/$HOSTINGER_DOMAIN/$HOSTINGER_APP_DIRECTORY"
+fi
+
+if [[ "$HOSTINGER_PUBLIC_DIRECTORY" != /* ]]; then
+    HOSTINGER_PUBLIC_DIRECTORY="$HOSTINGER_DOMAINS_DIRECTORY/$HOSTINGER_DOMAIN/$HOSTINGER_PUBLIC_DIRECTORY"
+fi
+
+if [[ ! "$HOSTINGER_DOMAIN" =~ ^[A-Za-z0-9.-]+$ ]]; then
+    printf 'HOSTINGER_DOMAIN contains unsupported characters.\n' >&2
+    exit 1
+fi
+
+REMOTE_TARGET="${HOSTINGER_SSH_USER}@${HOSTINGER_SSH_HOST}"
+
+printf 'Hostinger release target: %s (%s)\n' "$HOSTINGER_DOMAIN" "$REMOTE_TARGET"
+printf 'Application directory: %s\n' "$HOSTINGER_APP_DIRECTORY"
+printf 'Public directory: %s\n' "$HOSTINGER_PUBLIC_DIRECTORY"
+
+if [[ "$DRY_RUN" == true ]]; then
+    printf 'Dry run complete. No files were built, uploaded, or changed remotely.\n'
+    exit 0
+fi
+
+SSH_CONTROL_DIRECTORY="$(mktemp -d "${TMPDIR:-/tmp}/hostinger-deploy.XXXXXX")"
+SSH_COMMAND=(
+    ssh
+    -p "$HOSTINGER_SSH_PORT"
+    -o ControlMaster=auto
+    -o ControlPersist=5m
+    -o "ControlPath=$SSH_CONTROL_DIRECTORY/socket"
+)
+SSH_RSH="$(printf '%q ' "${SSH_COMMAND[@]}")"
+
+cleanup_ssh_control_directory() {
+    rm -rf "$SSH_CONTROL_DIRECTORY"
+}
+
+trap cleanup_ssh_control_directory EXIT
+
+cd "$PROJECT_DIRECTORY"
+run_local npm run build
+
+run_local "${SSH_COMMAND[@]}" "$REMOTE_TARGET" bash -s -- \
+    "$HOSTINGER_APP_DIRECTORY" "$HOSTINGER_PUBLIC_DIRECTORY" <<'REMOTE_PREPARE'
+set -euo pipefail
+
+application_directory="$1"
+public_directory="$2"
+
+mkdir -p \
+    "$application_directory" \
+    "$application_directory/bootstrap/cache" \
+    "$application_directory/storage/framework/cache/data" \
+    "$application_directory/storage/framework/sessions" \
+    "$application_directory/storage/framework/views" \
+    "$application_directory/storage/logs" \
+    "$public_directory"
+REMOTE_PREPARE
+
+run_local rsync -az \
+    --rsh="$SSH_RSH" \
+    --exclude='.env' \
+    --exclude='.env.*' \
+    --exclude='.git/' \
+    --exclude='node_modules/' \
+    --exclude='vendor/' \
+    --exclude='storage/' \
+    --exclude='database/*.sqlite' \
+    --exclude='bootstrap/cache/*.php' \
+    --exclude='public/' \
+    --exclude='public/hot' \
+    "$PROJECT_DIRECTORY/" "$REMOTE_TARGET:$HOSTINGER_APP_DIRECTORY/"
+
+run_local rsync -az \
+    --rsh="$SSH_RSH" \
+    --exclude='hot' \
+    --exclude='storage' \
+    "$PROJECT_DIRECTORY/public/" "$REMOTE_TARGET:$HOSTINGER_PUBLIC_DIRECTORY/"
+
+run_local "${SSH_COMMAND[@]}" "$REMOTE_TARGET" bash -s -- \
+    "$HOSTINGER_APP_DIRECTORY" "$HOSTINGER_PUBLIC_DIRECTORY" "$HOSTINGER_PHP_BINARY" "$SEED" <<'REMOTE_RELEASE'
+set -euo pipefail
+
+application_directory="$1"
+public_directory="$2"
+php_binary="$3"
+seed="$4"
+composer_binary="${HOSTINGER_COMPOSER_BINARY:-/usr/local/bin/composer}"
+
+if [[ ! -x "$composer_binary" ]]; then
+    printf 'Composer was not found at %s. Set HOSTINGER_COMPOSER_BINARY on the server.\n' "$composer_binary" >&2
+    exit 1
+fi
+
+cat > "$public_directory/index.php" <<PHP
+<?php
+
+use Illuminate\Foundation\Application;
+use Illuminate\Http\Request;
+
+define('LARAVEL_START', microtime(true));
+
+if (file_exists(\$maintenance = '$application_directory/storage/framework/maintenance.php')) {
+    require \$maintenance;
+}
+
+require '$application_directory/vendor/autoload.php';
+
+/** @var Application \$app */
+\$app = require_once '$application_directory/bootstrap/app.php';
+\$app->usePublicPath('$public_directory');
+
+\$app->handleRequest(Request::capture());
+PHP
+
+cd "$application_directory"
+"$php_binary" "$composer_binary" install --no-dev --prefer-dist --optimize-autoloader --no-interaction
+"$php_binary" artisan migrate --force
+
+if [[ "$seed" == true ]]; then
+    "$php_binary" artisan db:seed --force
+fi
+
+"$php_binary" artisan optimize:clear
+"$php_binary" artisan config:cache
+"$php_binary" artisan route:cache
+"$php_binary" artisan view:cache
+REMOTE_RELEASE
+
+printf 'Hostinger release complete for %s.\n' "$HOSTINGER_DOMAIN"

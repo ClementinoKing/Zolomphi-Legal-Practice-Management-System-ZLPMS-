@@ -2,16 +2,17 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Database\Factories\PositionFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-#[Fillable(['department_id', 'name', 'code', 'description', 'is_active'])]
+#[Fillable(['department_id', 'name', 'code', 'description', 'is_active', 'is_attorney'])]
 class Position extends Model
 {
-    /** @use HasFactory<\Database\Factories\PositionFactory> */
+    /** @use HasFactory<PositionFactory> */
     use HasFactory, SoftDeletes;
 
     /**
@@ -31,6 +32,7 @@ class Position extends Model
     {
         return [
             'is_active' => 'boolean',
+            'is_attorney' => 'boolean',
         ];
     }
 }

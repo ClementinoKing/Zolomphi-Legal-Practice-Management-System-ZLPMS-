@@ -1,15 +1,36 @@
 <?php
 
 use App\Http\Controllers\AdministrationController;
+use App\Http\Controllers\AuditLogController;
+use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\ClientController;
+use App\Http\Controllers\CompanyFilesController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\InvoiceSettingsController;
 use App\Http\Controllers\MatterController;
+use App\Http\Controllers\MatterWorkspaceController;
+use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\ReportController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/login')->name('home');
 
-Route::middleware(['auth', 'verified'])->group(function () {
-    Route::inertia('dashboard', 'dashboard')->name('dashboard');
+Route::middleware(['auth', 'verified', 'can:access-administration'])->group(function (): void {
+    Route::get('dashboard', DashboardController::class)->name('dashboard');
+    Route::get('reports', [ReportController::class, 'index'])->name('reports.index');
+    Route::get('audit-logs', [AuditLogController::class, 'index'])->name('audit-logs.index');
 });
+
+Route::middleware(['auth', 'verified'])
+    ->prefix('notifications')
+    ->name('notifications.')
+    ->group(function (): void {
+        Route::get('/', [NotificationController::class, 'index'])->name('index');
+        Route::patch('{notification}/read', [NotificationController::class, 'markRead'])->name('read');
+        Route::patch('read-all', [NotificationController::class, 'markAllRead'])->name('read-all');
+    });
 
 Route::middleware(['auth', 'verified', 'can:access-administration'])
     ->prefix('administration')
@@ -48,12 +69,55 @@ Route::middleware(['auth', 'verified', 'can:access-administration'])
     });
 
 Route::middleware(['auth', 'verified', 'can:access-administration'])
+    ->get('calendar', [CalendarController::class, 'index'])
+    ->name('calendar.index');
+
+Route::middleware(['auth', 'verified', 'can:access-administration'])
+    ->prefix('files')
+    ->name('files.')
+    ->group(function (): void {
+        Route::get('/', [CompanyFilesController::class, 'index'])->name('index');
+        Route::post('upload', [CompanyFilesController::class, 'store'])->name('store');
+        Route::get('documents/{document}/download', [CompanyFilesController::class, 'download'])->name('download');
+        Route::get('documents/{document}/preview', [CompanyFilesController::class, 'preview'])->name('preview');
+    });
+
+Route::middleware(['auth', 'verified', 'can:access-administration'])
+    ->prefix('invoices')
+    ->name('invoices.')
+    ->group(function (): void {
+        Route::get('/', [InvoiceController::class, 'index'])->name('index');
+        Route::get('settings', [InvoiceSettingsController::class, 'edit'])->name('settings.edit');
+        Route::put('settings', [InvoiceSettingsController::class, 'update'])->name('settings.update');
+        Route::get('create', [InvoiceController::class, 'create'])->name('create');
+        Route::post('/', [InvoiceController::class, 'store'])->name('store');
+        Route::get('{invoice}/edit', [InvoiceController::class, 'edit'])->name('edit');
+        Route::patch('{invoice}', [InvoiceController::class, 'update'])->name('update');
+    });
+
+Route::middleware(['auth', 'verified', 'can:access-administration'])->prefix('payments')->name('payments.')->group(function (): void {
+    Route::get('/', [PaymentController::class, 'index'])->name('index');
+    Route::post('/', [PaymentController::class, 'store'])->name('store');
+    Route::post('plans', [PaymentController::class, 'storePlan'])->name('plans.store');
+});
+
+Route::middleware(['auth', 'verified', 'can:access-administration'])
     ->prefix('matters')
     ->name('matters.')
     ->group(function (): void {
         Route::get('/', [MatterController::class, 'index'])->name('index');
         Route::get('open', [MatterController::class, 'open'])->name('open');
         Route::post('/', [MatterController::class, 'store'])->name('store');
+        Route::get('{matter}', [MatterWorkspaceController::class, 'show'])->name('show');
+        Route::post('{matter}/{work}', [MatterWorkspaceController::class, 'store'])
+            ->whereIn('work', ['tasks', 'time-entries', 'documents', 'notes', 'emails', 'calendar-events', 'expenses', 'flat-fees'])
+            ->name('workspace.store');
+        Route::patch('{matter}/{work}/{record}', [MatterWorkspaceController::class, 'update'])
+            ->whereIn('work', ['tasks', 'time-entries', 'documents', 'notes', 'calendar-events', 'expenses', 'flat-fees'])
+            ->name('workspace.update');
+        Route::patch('{matter}/tasks/{task}/complete', [MatterWorkspaceController::class, 'completeTask'])->name('tasks.complete');
+        Route::get('{matter}/documents/{document}/download', [MatterWorkspaceController::class, 'download'])->name('documents.download');
+        Route::get('{matter}/expenses/{expense}/receipt', [MatterWorkspaceController::class, 'downloadReceipt'])->name('expenses.receipt');
     });
 
 Route::middleware(['auth', 'verified', 'can:access-administration'])

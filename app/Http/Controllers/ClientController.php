@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Actions\Clients\GenerateClientNumber;
+use App\Actions\CompanyDrive\EnsureClientDriveFolder;
 use App\Http\Requests\ClientRequest;
 use App\Models\Client;
 use Illuminate\Http\RedirectResponse;
@@ -66,11 +67,13 @@ class ClientController extends Controller
     public function store(
         ClientRequest $request,
         GenerateClientNumber $generateClientNumber,
+        EnsureClientDriveFolder $ensureClientDriveFolder,
     ): RedirectResponse {
-        DB::transaction(function () use ($request, $generateClientNumber): void {
+        DB::transaction(function () use ($request, $generateClientNumber, $ensureClientDriveFolder): void {
             $attributes = $this->clientAttributes($request);
             $attributes['client_number'] = $generateClientNumber->handle();
-            Client::create($attributes);
+            $client = Client::create($attributes);
+            $ensureClientDriveFolder->handle($client, $request->user());
         });
 
         return $this->success('Client created.');
@@ -79,8 +82,10 @@ class ClientController extends Controller
     public function update(
         ClientRequest $request,
         Client $client,
+        EnsureClientDriveFolder $ensureClientDriveFolder,
     ): RedirectResponse {
         $client->update($this->clientAttributes($request));
+        $ensureClientDriveFolder->handle($client, $request->user());
 
         return $this->success('Client updated.');
     }

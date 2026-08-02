@@ -13,13 +13,6 @@ import InputError from '@/components/input-error';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
-import {
     Dialog,
     DialogClose,
     DialogContent,
@@ -128,62 +121,62 @@ export default function ClientManagement({ clients }: { clients: Client[] }) {
     }
 
     return (
-        <Card>
-            <CardHeader className="gap-4">
+        <section className="grid gap-5">
+            <header className="flex flex-col gap-4 border-b pb-5 sm:flex-row sm:items-start sm:justify-between">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="grid gap-1">
-                        <CardTitle>Clients</CardTitle>
-                        <CardDescription>
-                            Manage the people and organizations your firm
-                            represents.
-                        </CardDescription>
+                        <p className="text-sm text-muted-foreground">
+                            {filteredClients.length} of {clients.length} client
+                            {clients.length === 1 ? '' : 's'} in the practice
+                            workspace.
+                        </p>
                     </div>
-                    <ClientDialog />
                 </div>
-                <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_11rem_9rem]">
-                    <div className="relative">
-                        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input
-                            aria-label="Search clients"
-                            className="pl-9"
-                            placeholder="Search by client, code, contact, email, or phone"
-                            value={search}
-                            onChange={(event) => {
-                                setSearch(event.target.value);
-                                resetPage();
-                            }}
-                        />
-                    </div>
-                    <select
-                        aria-label="Filter clients by type"
-                        className="h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs"
-                        value={typeFilter}
+                <ClientDialog />
+            </header>
+            <div className="grid gap-3 rounded-xl bg-muted/35 p-3 md:grid-cols-[minmax(0,1fr)_11rem_9rem]">
+                <div className="relative">
+                    <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                        aria-label="Search clients"
+                        className="bg-background pl-9"
+                        placeholder="Search by client, code, contact, email, or phone"
+                        value={search}
                         onChange={(event) => {
-                            setTypeFilter(event.target.value);
+                            setSearch(event.target.value);
                             resetPage();
                         }}
-                    >
-                        <option value="all">All types</option>
-                        <option value="individual">Individuals</option>
-                        <option value="organization">Organizations</option>
-                    </select>
-                    <select
-                        aria-label="Filter clients by status"
-                        className="h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs"
-                        value={statusFilter}
-                        onChange={(event) => {
-                            setStatusFilter(event.target.value);
-                            resetPage();
-                        }}
-                    >
-                        <option value="all">All statuses</option>
-                        <option value="active">Active</option>
-                        <option value="inactive">Inactive</option>
-                    </select>
+                    />
                 </div>
-            </CardHeader>
-            <CardContent>
-                <div className="overflow-x-auto rounded-lg border">
+                <select
+                    aria-label="Filter clients by type"
+                    className="h-9 rounded-md border border-input bg-background px-3 text-sm shadow-xs"
+                    value={typeFilter}
+                    onChange={(event) => {
+                        setTypeFilter(event.target.value);
+                        resetPage();
+                    }}
+                >
+                    <option value="all">All types</option>
+                    <option value="individual">Individuals</option>
+                    <option value="organization">Organizations</option>
+                </select>
+                <select
+                    aria-label="Filter clients by status"
+                    className="h-9 rounded-md border border-input bg-background px-3 text-sm shadow-xs"
+                    value={statusFilter}
+                    onChange={(event) => {
+                        setStatusFilter(event.target.value);
+                        resetPage();
+                    }}
+                >
+                    <option value="all">All statuses</option>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                </select>
+            </div>
+            <div className="grid gap-4">
+                <div className="overflow-x-auto rounded-xl border border-border/70 bg-background">
                     <table className="w-full min-w-250 text-left text-sm">
                         <thead className="bg-muted/50 text-xs tracking-wide text-muted-foreground uppercase">
                             <tr>
@@ -336,8 +329,8 @@ export default function ClientManagement({ clients }: { clients: Client[] }) {
                         </Button>
                     </div>
                 </div>
-            </CardContent>
-        </Card>
+            </div>
+        </section>
     );
 }
 

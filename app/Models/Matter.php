@@ -2,13 +2,35 @@
 
 namespace App\Models;
 
+use Database\Factories\MatterFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property int $id
+ * @property string $matter_number
+ * @property int $client_id
+ * @property int|null $matter_type_id
+ * @property int|null $responsible_user_id
+ * @property string $title
+ * @property string $status
+ * @property string $priority
+ * @property string $billing_type
+ * @property string|null $budget_amount
+ * @property Carbon $opened_at
+ * @property Carbon|null $deadline_at
+ * @property-read Client $client
+ * @property-read MatterType $matterType
+ * @property-read User $responsibleUser
+ * @property-read int $participants_count
+ * @property-read int $total
+ */
 #[Fillable([
     'matter_number',
     'client_id',
@@ -23,13 +45,14 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'default_hourly_rate',
     'budget_amount',
     'opened_at',
+    'deadline_at',
     'closed_at',
     'closure_summary',
     'metadata',
 ])]
 class Matter extends Model
 {
-    /** @use HasFactory<\Database\Factories\MatterFactory> */
+    /** @use HasFactory<MatterFactory> */
     use HasFactory, SoftDeletes;
 
     /** @var array<string, mixed> */
@@ -52,7 +75,9 @@ class Matter extends Model
      */
     public function matterType(): BelongsTo
     {
-        return $this->belongsTo(MatterType::class);
+        return $this->belongsTo(MatterType::class)->withDefault([
+            'name' => 'Unclassified',
+        ]);
     }
 
     /**
@@ -60,7 +85,9 @@ class Matter extends Model
      */
     public function responsibleUser(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'responsible_user_id');
+        return $this->belongsTo(User::class, 'responsible_user_id')->withDefault([
+            'name' => 'Unassigned',
+        ]);
     }
 
     /**
@@ -80,12 +107,98 @@ class Matter extends Model
     }
 
     /**
+     * Internal legal practitioners assigned to work on the matter.
+     *
+     * @return BelongsToMany<User, $this>
+     */
+    public function attorneys(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'matter_attorney')
+            ->withPivot('assigned_at');
+    }
+
+    /**
+     * @return HasMany<Task, $this>
+     */
+    public function tasks(): HasMany
+    {
+        return $this->hasMany(Task::class);
+    }
+
+    /**
+     * @return HasMany<TimeEntry, $this>
+     */
+    public function timeEntries(): HasMany
+    {
+        return $this->hasMany(TimeEntry::class);
+    }
+
+    /**
+     * @return HasMany<Document, $this>
+     */
+    public function documents(): HasMany
+    {
+        return $this->hasMany(Document::class);
+    }
+
+    /**
+     * @return HasMany<MatterNote, $this>
+     */
+    public function notes(): HasMany
+    {
+        return $this->hasMany(MatterNote::class);
+    }
+
+    /**
+     * @return HasMany<MatterEmail, $this>
+     */
+    public function emails(): HasMany
+    {
+        return $this->hasMany(MatterEmail::class);
+    }
+
+    /**
+     * @return HasMany<Appointment, $this>
+     */
+    public function appointments(): HasMany
+    {
+        return $this->hasMany(Appointment::class);
+    }
+
+    /**
+     * @return HasMany<Expense, $this>
+     */
+    public function expenses(): HasMany
+    {
+        return $this->hasMany(Expense::class);
+    }
+
+    /**
+     * @return HasMany<MatterCharge, $this>
+     */
+    public function charges(): HasMany
+    {
+        return $this->hasMany(MatterCharge::class);
+    }
+
+    /**
+     * Invoices raised specifically for this matter.
+     *
+     * @return HasMany<Invoice, $this>
+     */
+    public function invoices(): HasMany
+    {
+        return $this->hasMany(Invoice::class);
+    }
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array
     {
         return [
             'opened_at' => 'date',
+            'deadline_at' => 'date',
             'closed_at' => 'date',
             'default_hourly_rate' => 'decimal:2',
             'budget_amount' => 'decimal:2',

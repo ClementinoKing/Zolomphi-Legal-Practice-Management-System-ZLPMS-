@@ -65,6 +65,7 @@ export default function OpenMatterForm({
     const [title, setTitle] = useState('');
     const [billingType, setBillingType] = useState<BillingType>('hourly');
     const [hourlyRate, setHourlyRate] = useState('');
+    const [attorneyIds, setAttorneyIds] = useState<number[]>([]);
     const [participants, setParticipants] = useState<Participant[]>([]);
     const [nextParticipantId, setNextParticipantId] = useState(1);
 
@@ -100,6 +101,14 @@ export default function OpenMatterForm({
         setNextParticipantId((current) => current + 1);
     }
 
+    function toggleAttorney(attorneyId: number): void {
+        setAttorneyIds((current) =>
+            current.includes(attorneyId)
+                ? current.filter((id) => id !== attorneyId)
+                : [...current, attorneyId],
+        );
+    }
+
     function resetWizard(): void {
         setStep(1);
         setClientId('');
@@ -108,6 +117,7 @@ export default function OpenMatterForm({
         setTitle('');
         setBillingType('hourly');
         setHourlyRate('');
+        setAttorneyIds([]);
         setParticipants([]);
         setNextParticipantId(1);
     }
@@ -220,6 +230,12 @@ export default function OpenMatterForm({
                                 defaultValue={today}
                                 required
                             />
+                            <TextField
+                                label="Matter deadline"
+                                name="deadline_at"
+                                type="date"
+                                error={errors.deadline_at}
+                            />
                         </div>
                         <TextField
                             label="Matter title"
@@ -303,9 +319,56 @@ export default function OpenMatterForm({
                     </section>
 
                     <section className={step === 3 ? 'grid gap-4' : 'hidden'}>
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="grid gap-1">
+                            <h3 className="font-medium">Attorney team</h3>
+                            <p className="text-sm text-muted-foreground">
+                                Select internal attorney participants. The
+                                responsible attorney is included automatically.
+                            </p>
+                        </div>
+                        {responsibleUsers.length === 0 ? (
+                            <div className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+                                No active attorneys are available. Create an
+                                active attorney position and assign it to a user
+                                before opening a matter.
+                            </div>
+                        ) : (
+                            <div className="grid gap-2 rounded-lg border p-3 sm:grid-cols-2">
+                                {responsibleUsers.map((attorney) => (
+                                    <label
+                                        key={attorney.id}
+                                        className="flex cursor-pointer items-start gap-3 rounded-md px-2 py-2 transition-colors hover:bg-muted/50"
+                                    >
+                                        <input
+                                            className="mt-0.5 size-4 accent-primary"
+                                            type="checkbox"
+                                            name="attorney_ids[]"
+                                            value={attorney.id}
+                                            checked={attorneyIds.includes(
+                                                attorney.id,
+                                            )}
+                                            onChange={() =>
+                                                toggleAttorney(attorney.id)
+                                            }
+                                        />
+                                        <span className="grid gap-0.5 text-sm">
+                                            <span className="font-medium">
+                                                {attorney.name}
+                                            </span>
+                                            <span className="text-muted-foreground">
+                                                {attorney.email}
+                                            </span>
+                                        </span>
+                                    </label>
+                                ))}
+                            </div>
+                        )}
+                        <InputError message={errors.attorney_ids} />
+                        <div className="mt-2 flex flex-col gap-3 border-t pt-5 sm:flex-row sm:items-start sm:justify-between">
                             <div className="grid gap-1">
-                                <h3 className="font-medium">Participants</h3>
+                                <h3 className="font-medium">
+                                    External parties
+                                </h3>
                                 <p className="text-sm text-muted-foreground">
                                     Add opposing parties, witnesses, and other
                                     contacts if applicable.
@@ -317,13 +380,13 @@ export default function OpenMatterForm({
                                 onClick={addParticipant}
                             >
                                 <Plus />
-                                Add participant
+                                Add external party
                             </Button>
                         </div>
                         {participants.length === 0 ? (
                             <div className="rounded-lg border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
                                 <UsersRound className="mx-auto mb-3 size-5" />
-                                No additional participants have been added.
+                                No external parties have been added.
                             </div>
                         ) : (
                             participants.map((participant, index) => (

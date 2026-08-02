@@ -5,13 +5,6 @@ import InputError from '@/components/input-error';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
-import {
     Dialog,
     DialogClose,
     DialogContent,
@@ -37,6 +30,7 @@ type Position = {
     code: string;
     description: string | null;
     is_active: boolean;
+    is_attorney: boolean;
     department: Department;
 };
 
@@ -47,114 +41,108 @@ type Props = {
 
 export default function PositionManagement({ positions, departments }: Props) {
     return (
-        <Card>
-            <CardHeader className="gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <section className="grid gap-5">
+            <header className="flex flex-col gap-4 border-b pb-5 sm:flex-row sm:items-start sm:justify-between">
                 <div className="grid gap-1">
-                    <CardTitle>Positions</CardTitle>
-                    <CardDescription>
-                        Define the roles available within each department of
-                        your law firm.
-                    </CardDescription>
+                    <p className="text-sm text-muted-foreground">
+                        {positions.length} position
+                        {positions.length === 1 ? '' : 's'} available across the
+                        firm.
+                    </p>
                 </div>
                 <PositionDialog departments={departments} />
-            </CardHeader>
-            <CardContent>
-                <div className="overflow-x-auto rounded-lg border">
-                    <table className="w-full min-w-200 text-left text-sm">
-                        <thead className="bg-muted/50 text-xs tracking-wide text-muted-foreground uppercase">
+            </header>
+            <div className="overflow-x-auto rounded-xl border border-border/70 bg-background">
+                <table className="w-full min-w-200 text-left text-sm">
+                    <thead className="bg-muted/50 text-xs tracking-wide text-muted-foreground uppercase">
+                        <tr>
+                            <th scope="col" className="px-4 py-3 font-medium">
+                                Position
+                            </th>
+                            <th scope="col" className="px-4 py-3 font-medium">
+                                Department
+                            </th>
+                            <th scope="col" className="px-4 py-3 font-medium">
+                                Code
+                            </th>
+                            <th scope="col" className="px-4 py-3 font-medium">
+                                Practice role
+                            </th>
+                            <th scope="col" className="px-4 py-3 font-medium">
+                                Status
+                            </th>
+                            <th
+                                scope="col"
+                                className="px-4 py-3 text-right font-medium"
+                            >
+                                Actions
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                        {positions.length === 0 ? (
                             <tr>
-                                <th
-                                    scope="col"
-                                    className="px-4 py-3 font-medium"
+                                <td
+                                    colSpan={6}
+                                    className="px-4 py-12 text-center text-muted-foreground"
                                 >
-                                    Position
-                                </th>
-                                <th
-                                    scope="col"
-                                    className="px-4 py-3 font-medium"
-                                >
-                                    Department
-                                </th>
-                                <th
-                                    scope="col"
-                                    className="px-4 py-3 font-medium"
-                                >
-                                    Code
-                                </th>
-                                <th
-                                    scope="col"
-                                    className="px-4 py-3 font-medium"
-                                >
-                                    Status
-                                </th>
-                                <th
-                                    scope="col"
-                                    className="px-4 py-3 text-right font-medium"
-                                >
-                                    Actions
-                                </th>
+                                    <BriefcaseBusiness className="mx-auto mb-3 size-5" />
+                                    No positions have been created yet.
+                                </td>
                             </tr>
-                        </thead>
-                        <tbody className="divide-y">
-                            {positions.length === 0 ? (
-                                <tr>
-                                    <td
-                                        colSpan={5}
-                                        className="px-4 py-12 text-center text-muted-foreground"
-                                    >
-                                        <BriefcaseBusiness className="mx-auto mb-3 size-5" />
-                                        No positions have been created yet.
+                        ) : (
+                            positions.map((position) => (
+                                <tr
+                                    key={position.id}
+                                    className="transition-colors hover:bg-muted/30"
+                                >
+                                    <td className="px-4 py-3 align-top">
+                                        <p className="font-medium">
+                                            {position.name}
+                                        </p>
+                                        {position.description && (
+                                            <p className="mt-0.5 max-w-lg text-muted-foreground">
+                                                {position.description}
+                                            </p>
+                                        )}
+                                    </td>
+                                    <td className="px-4 py-3 align-top text-muted-foreground">
+                                        {position.department.name}
+                                    </td>
+                                    <td className="px-4 py-3 align-top font-mono text-muted-foreground">
+                                        {position.code}
+                                    </td>
+                                    <td className="px-4 py-3 align-top text-muted-foreground">
+                                        {position.is_attorney
+                                            ? 'Attorney'
+                                            : 'Support'}
+                                    </td>
+                                    <td className="px-4 py-3 align-top">
+                                        <Badge
+                                            variant={
+                                                position.is_active
+                                                    ? 'default'
+                                                    : 'secondary'
+                                            }
+                                        >
+                                            {position.is_active
+                                                ? 'Active'
+                                                : 'Inactive'}
+                                        </Badge>
+                                    </td>
+                                    <td className="px-4 py-3 text-right align-top">
+                                        <PositionDialog
+                                            position={position}
+                                            departments={departments}
+                                        />
                                     </td>
                                 </tr>
-                            ) : (
-                                positions.map((position) => (
-                                    <tr
-                                        key={position.id}
-                                        className="transition-colors hover:bg-muted/30"
-                                    >
-                                        <td className="px-4 py-3 align-top">
-                                            <p className="font-medium">
-                                                {position.name}
-                                            </p>
-                                            {position.description && (
-                                                <p className="mt-0.5 max-w-lg text-muted-foreground">
-                                                    {position.description}
-                                                </p>
-                                            )}
-                                        </td>
-                                        <td className="px-4 py-3 align-top text-muted-foreground">
-                                            {position.department.name}
-                                        </td>
-                                        <td className="px-4 py-3 align-top font-mono text-muted-foreground">
-                                            {position.code}
-                                        </td>
-                                        <td className="px-4 py-3 align-top">
-                                            <Badge
-                                                variant={
-                                                    position.is_active
-                                                        ? 'default'
-                                                        : 'secondary'
-                                                }
-                                            >
-                                                {position.is_active
-                                                    ? 'Active'
-                                                    : 'Inactive'}
-                                            </Badge>
-                                        </td>
-                                        <td className="px-4 py-3 text-right align-top">
-                                            <PositionDialog
-                                                position={position}
-                                                departments={departments}
-                                            />
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </CardContent>
-        </Card>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        </section>
     );
 }
 
@@ -269,6 +257,27 @@ function PositionDialog({
                                     Position is active
                                 </Label>
                                 <InputError message={errors.is_active} />
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="hidden"
+                                    name="is_attorney"
+                                    value="0"
+                                />
+                                <input
+                                    id="position-is-attorney"
+                                    className="size-4 accent-primary"
+                                    type="checkbox"
+                                    name="is_attorney"
+                                    value="1"
+                                    defaultChecked={
+                                        position?.is_attorney ?? false
+                                    }
+                                />
+                                <Label htmlFor="position-is-attorney">
+                                    This is an attorney position
+                                </Label>
+                                <InputError message={errors.is_attorney} />
                             </div>
                             <DialogFooter>
                                 <DialogClose asChild>

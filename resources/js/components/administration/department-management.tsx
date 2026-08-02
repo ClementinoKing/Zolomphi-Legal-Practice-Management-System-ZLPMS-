@@ -5,13 +5,6 @@ import InputError from '@/components/input-error';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
-import {
     Dialog,
     DialogClose,
     DialogContent,
@@ -40,113 +33,99 @@ export default function DepartmentManagement({
     departments: Department[];
 }) {
     return (
-        <Card>
-            <CardHeader className="gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <section className="grid gap-5">
+            <header className="flex flex-col gap-4 border-b pb-5 sm:flex-row sm:items-start sm:justify-between">
                 <div className="grid gap-1">
-                    <CardTitle>Departments</CardTitle>
-                    <CardDescription>
-                        Maintain the teams and business units that structure the
-                        law firm.
-                    </CardDescription>
+                    <p className="text-sm text-muted-foreground">
+                        {departments.length} department
+                        {departments.length === 1 ? '' : 's'} in the firm
+                        structure.
+                    </p>
                 </div>
                 <DepartmentDialog />
-            </CardHeader>
-            <CardContent>
-                <div className="overflow-x-auto rounded-lg border">
-                    <table className="w-full min-w-200 text-left text-sm">
-                        <thead className="bg-muted/50 text-xs tracking-wide text-muted-foreground uppercase">
+            </header>
+            <div className="overflow-x-auto rounded-xl border border-border/70 bg-background">
+                <table className="w-full min-w-200 text-left text-sm">
+                    <thead className="bg-muted/50 text-xs tracking-wide text-muted-foreground uppercase">
+                        <tr>
+                            <th scope="col" className="px-4 py-3 font-medium">
+                                Department
+                            </th>
+                            <th scope="col" className="px-4 py-3 font-medium">
+                                Code
+                            </th>
+                            <th scope="col" className="px-4 py-3 font-medium">
+                                Team members
+                            </th>
+                            <th scope="col" className="px-4 py-3 font-medium">
+                                Status
+                            </th>
+                            <th
+                                scope="col"
+                                className="px-4 py-3 text-right font-medium"
+                            >
+                                Actions
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                        {departments.length === 0 ? (
                             <tr>
-                                <th
-                                    scope="col"
-                                    className="px-4 py-3 font-medium"
+                                <td
+                                    colSpan={5}
+                                    className="px-4 py-12 text-center text-muted-foreground"
                                 >
-                                    Department
-                                </th>
-                                <th
-                                    scope="col"
-                                    className="px-4 py-3 font-medium"
-                                >
-                                    Code
-                                </th>
-                                <th
-                                    scope="col"
-                                    className="px-4 py-3 font-medium"
-                                >
-                                    Team members
-                                </th>
-                                <th
-                                    scope="col"
-                                    className="px-4 py-3 font-medium"
-                                >
-                                    Status
-                                </th>
-                                <th
-                                    scope="col"
-                                    className="px-4 py-3 text-right font-medium"
-                                >
-                                    Actions
-                                </th>
+                                    <UsersRound className="mx-auto mb-3 size-5" />
+                                    No departments have been created yet.
+                                </td>
                             </tr>
-                        </thead>
-                        <tbody className="divide-y">
-                            {departments.length === 0 ? (
-                                <tr>
-                                    <td
-                                        colSpan={5}
-                                        className="px-4 py-12 text-center text-muted-foreground"
-                                    >
-                                        <UsersRound className="mx-auto mb-3 size-5" />
-                                        No departments have been created yet.
+                        ) : (
+                            departments.map((department) => (
+                                <tr
+                                    key={department.id}
+                                    className="transition-colors hover:bg-muted/30"
+                                >
+                                    <td className="px-4 py-3 align-top">
+                                        <p className="font-medium">
+                                            {department.name}
+                                        </p>
+                                        {department.description && (
+                                            <p className="mt-0.5 max-w-lg text-muted-foreground">
+                                                {department.description}
+                                            </p>
+                                        )}
+                                    </td>
+                                    <td className="px-4 py-3 align-top font-mono text-muted-foreground">
+                                        {department.code}
+                                    </td>
+                                    <td className="px-4 py-3 align-top text-muted-foreground">
+                                        {department.users_count}
+                                    </td>
+                                    <td className="px-4 py-3 align-top">
+                                        <Badge
+                                            variant={
+                                                department.is_active
+                                                    ? 'default'
+                                                    : 'secondary'
+                                            }
+                                        >
+                                            {department.is_active
+                                                ? 'Active'
+                                                : 'Inactive'}
+                                        </Badge>
+                                    </td>
+                                    <td className="px-4 py-3 text-right align-top">
+                                        <DepartmentDialog
+                                            department={department}
+                                        />
                                     </td>
                                 </tr>
-                            ) : (
-                                departments.map((department) => (
-                                    <tr
-                                        key={department.id}
-                                        className="transition-colors hover:bg-muted/30"
-                                    >
-                                        <td className="px-4 py-3 align-top">
-                                            <p className="font-medium">
-                                                {department.name}
-                                            </p>
-                                            {department.description && (
-                                                <p className="mt-0.5 max-w-lg text-muted-foreground">
-                                                    {department.description}
-                                                </p>
-                                            )}
-                                        </td>
-                                        <td className="px-4 py-3 align-top font-mono text-muted-foreground">
-                                            {department.code}
-                                        </td>
-                                        <td className="px-4 py-3 align-top text-muted-foreground">
-                                            {department.users_count}
-                                        </td>
-                                        <td className="px-4 py-3 align-top">
-                                            <Badge
-                                                variant={
-                                                    department.is_active
-                                                        ? 'default'
-                                                        : 'secondary'
-                                                }
-                                            >
-                                                {department.is_active
-                                                    ? 'Active'
-                                                    : 'Inactive'}
-                                            </Badge>
-                                        </td>
-                                        <td className="px-4 py-3 text-right align-top">
-                                            <DepartmentDialog
-                                                department={department}
-                                            />
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </CardContent>
-        </Card>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        </section>
     );
 }
 

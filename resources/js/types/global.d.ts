@@ -13,6 +13,23 @@ declare module '@inertiajs/core' {
             name: string;
             auth: Auth;
             sidebarOpen: boolean;
+            currency: {
+                base: string;
+                code: string;
+                rates: Record<string, number>;
+            };
+            notifications: {
+                unread_count: number;
+                recent: Array<{
+                    id: string;
+                    title: string;
+                    body: string;
+                    url: string;
+                    type: string;
+                    read_at: string | null;
+                    created_at: string;
+                }>;
+            };
             [key: string]: unknown;
         };
     }

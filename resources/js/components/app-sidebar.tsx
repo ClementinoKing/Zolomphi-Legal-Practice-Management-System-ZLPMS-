@@ -1,21 +1,22 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
-    BookOpen,
     Building2,
     BriefcaseBusiness,
     Briefcase,
+    CalendarDays,
+    ChartNoAxesCombined,
     CreditCard,
+    FolderOpen,
     FileText,
-    FolderGit2,
+    ReceiptText,
     KeyRound,
     LayoutGrid,
     Scale,
+    ScrollText,
     ShieldCheck,
     UsersRound,
     Wallet,
 } from 'lucide-react';
-import AppLogo from '@/components/app-logo';
-import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
 import {
@@ -38,26 +39,20 @@ import { index as permissions } from '@/routes/administration/permissions';
 import { index as positions } from '@/routes/administration/positions';
 import { index as roles } from '@/routes/administration/roles';
 import { index as users } from '@/routes/administration/users';
+import { index as auditLogs } from '@/routes/audit-logs';
+import { index as calendar } from '@/routes/calendar';
 import { index as clients } from '@/routes/clients';
+import { index as files } from '@/routes/files';
+import { index as invoices } from '@/routes/invoices';
+import { edit as invoiceSettings } from '@/routes/invoices/settings';
 import { index as matters } from '@/routes/matters';
+import { index as payments } from '@/routes/payments';
+import { index as reports } from '@/routes/reports';
 import type { Auth, NavItem } from '@/types';
-
-const footerNavItems: NavItem[] = [
-    {
-        title: 'Repository',
-        href: 'https://github.com/laravel/react-starter-kit',
-        icon: FolderGit2,
-    },
-    {
-        title: 'Documentation',
-        href: 'https://laravel.com/docs/starter-kits#react',
-        icon: BookOpen,
-    },
-];
 
 export function AppSidebar() {
     const { auth } = usePage<{ auth: Auth }>().props;
-    const mainNavItems: NavItem[] = [
+    const practiceNavItems: NavItem[] = [
         {
             title: 'Dashboard',
             href: dashboard(),
@@ -76,67 +71,124 @@ export function AppSidebar() {
                       icon: Scale,
                   },
                   {
-                      title: 'Firm',
-                      href: firm(),
-                      icon: Building2,
+                      title: 'Calendar',
+                      href: calendar(),
+                      icon: CalendarDays,
                   },
                   {
-                      title: 'Users',
-                      href: users(),
-                      icon: UsersRound,
+                      title: 'Files',
+                      href: files(),
+                      icon: FolderOpen,
                   },
                   {
-                      title: 'Departments',
-                      href: departments(),
-                      icon: BriefcaseBusiness,
+                      title: 'Invoices',
+                      href: invoices(),
+                      icon: ReceiptText,
+                      children: [
+                          { title: 'All invoices', href: invoices() },
+                          { title: 'Invoice settings', href: invoiceSettings() },
+                      ],
                   },
+                  { title: 'Payments', href: payments(), icon: Wallet },
                   {
-                      title: 'Positions',
-                      href: positions(),
-                      icon: Briefcase,
+                      title: 'Reports',
+                      href: reports(),
+                      icon: ChartNoAxesCombined,
                   },
-                  {
-                      title: 'Roles',
-                      href: roles(),
-                      icon: ShieldCheck,
-                  },
-                  {
-                      title: 'Permissions',
-                      href: permissions(),
-                      icon: KeyRound,
-                  },
-                  {
-                      title: 'Matter types',
-                      href: matterTypes(),
-                      icon: Scale,
-                  },
-                  {
-                      title: 'Billing items',
-                      href: billingItems(),
-                      icon: FileText,
-                  },
-                  {
-                      title: 'Expense categories',
-                      href: expenseCategories(),
-                      icon: Wallet,
-                  },
-                  {
-                      title: 'Payment methods',
-                      href: paymentMethods(),
-                      icon: CreditCard,
-                  },
+                  { title: 'Audit logs', href: auditLogs(), icon: ScrollText },
               ]
             : []),
     ];
+    const firmAdministrationNavItems: NavItem[] = auth.canAccessAdministration
+        ? [
+              {
+                  title: 'Firm',
+                  href: firm(),
+                  icon: Building2,
+              },
+              {
+                  title: 'Users',
+                  href: users(),
+                  icon: UsersRound,
+              },
+              {
+                  title: 'Departments',
+                  href: departments(),
+                  icon: BriefcaseBusiness,
+              },
+              {
+                  title: 'Positions',
+                  href: positions(),
+                  icon: Briefcase,
+              },
+          ]
+        : [];
+    const accessControlNavItems: NavItem[] = auth.canAccessAdministration
+        ? [
+              {
+                  title: 'Roles',
+                  href: roles(),
+                  icon: ShieldCheck,
+              },
+              {
+                  title: 'Permissions',
+                  href: permissions(),
+                  icon: KeyRound,
+              },
+          ]
+        : [];
+    const billingConfigurationNavItems: NavItem[] = auth.canAccessAdministration
+        ? [
+              {
+                  title: 'Matter types',
+                  href: matterTypes(),
+                  icon: Scale,
+              },
+              {
+                  title: 'Billing items',
+                  href: billingItems(),
+                  icon: FileText,
+              },
+              {
+                  title: 'Expense categories',
+                  href: expenseCategories(),
+                  icon: Wallet,
+              },
+              {
+                  title: 'Payment methods',
+                  href: paymentMethods(),
+                  icon: CreditCard,
+              },
+          ]
+        : [];
 
     return (
         <Sidebar collapsible="icon" variant="inset">
-            <SidebarHeader>
+            <SidebarHeader className="px-4 pt-4 pb-3 group-data-[collapsible=icon]:p-2">
                 <SidebarMenu>
                     <SidebarMenuItem>
-                        <SidebarMenuButton size="lg" asChild>
-                            <Link href={dashboard()} prefetch>
-                                <AppLogo />
+                        <SidebarMenuButton
+                            size="lg"
+                            className="h-auto min-h-18 p-0 group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:min-h-0 hover:bg-transparent"
+                            asChild
+                        >
+                            <Link
+                                href={dashboard()}
+                                prefetch
+                                aria-label="Zolomphi & Co. dashboard"
+                            >
+                                <div className="flex w-full min-w-0 items-center justify-center">
+                                    <img
+                                        src="/logos/Zolomphi Favicon.svg"
+                                        alt=""
+                                        className="hidden size-8 shrink-0 object-contain group-data-[collapsible=icon]:block"
+                                    />
+                                    <img
+                                        src="/logos/Zolomphi Logo Alt.svg"
+                                        alt="Zolomphi & Co."
+                                        className="block h-auto w-full max-w-full object-contain group-data-[collapsible=icon]:hidden"
+                                    />
+                                </div>
                             </Link>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -144,11 +196,28 @@ export function AppSidebar() {
             </SidebarHeader>
 
             <SidebarContent>
-                <NavMain items={mainNavItems} />
+                <NavMain label="Practice" items={practiceNavItems} />
+                {firmAdministrationNavItems.length > 0 && (
+                    <NavMain
+                        label="Firm administration"
+                        items={firmAdministrationNavItems}
+                    />
+                )}
+                {accessControlNavItems.length > 0 && (
+                    <NavMain
+                        label="Access control"
+                        items={accessControlNavItems}
+                    />
+                )}
+                {billingConfigurationNavItems.length > 0 && (
+                    <NavMain
+                        label="Billing & configuration"
+                        items={billingConfigurationNavItems}
+                    />
+                )}
             </SidebarContent>
 
             <SidebarFooter>
-                <NavFooter items={footerNavItems} className="mt-auto" />
                 <NavUser />
             </SidebarFooter>
         </Sidebar>

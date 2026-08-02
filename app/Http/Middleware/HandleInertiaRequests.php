@@ -2,7 +2,10 @@
 
 namespace App\Http\Middleware;
 
+use App\CurrencyConverter;
+use App\Models\GeneralSetting;
 use Illuminate\Http\Request;
+use Illuminate\Notifications\DatabaseNotification;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -43,6 +46,39 @@ class HandleInertiaRequests extends Middleware
                 'canAccessAdministration' => $request->user()?->can('access-administration') ?? false,
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
+            'currency' => function (): array {
+                $currency = GeneralSetting::query()->value('currency');
+
+                return [
+                    'base' => CurrencyConverter::BaseCurrency,
+                    'code' => is_string($currency) ? $currency : CurrencyConverter::BaseCurrency,
+                    'rates' => app(CurrencyConverter::class)->rates(),
+                ];
+            },
+            'notifications' => function () use ($request): array {
+                $user = $request->user();
+
+                if ($user === null) {
+                    return ['unread_count' => 0, 'recent' => []];
+                }
+
+                return [
+                    'unread_count' => $user->unreadNotifications()->count(),
+                    'recent' => $user->notifications()
+                        ->latest()
+                        ->limit(5)
+                        ->get()
+                        ->map(fn (DatabaseNotification $notification): array => [
+                            'id' => $notification->id,
+                            'title' => $notification->data['title'],
+                            'body' => $notification->data['body'],
+                            'url' => $notification->data['url'],
+                            'type' => $notification->data['type'],
+                            'read_at' => $notification->read_at?->toIso8601String(),
+                            'created_at' => $notification->created_at->toIso8601String(),
+                        ])->all(),
+                ];
+            },
         ];
     }
 }

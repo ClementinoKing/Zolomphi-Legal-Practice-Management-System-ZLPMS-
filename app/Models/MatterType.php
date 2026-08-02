@@ -7,6 +7,10 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
+/**
+ * @property int $id
+ * @property string $name
+ */
 #[Fillable(['name', 'code', 'description', 'default_billing_type', 'default_hourly_rate', 'is_active', 'sort_order'])]
 class MatterType extends Model
 {

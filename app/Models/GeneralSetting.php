@@ -20,6 +20,7 @@ use Illuminate\Database\Eloquent\Model;
     'license_number',
     'timezone',
     'currency',
+    'invoice_settings',
 ])]
 class GeneralSetting extends Model
 {
@@ -30,4 +31,14 @@ class GeneralSetting extends Model
         'timezone' => 'Africa/Blantyre',
         'currency' => 'MWK',
     ];
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'invoice_settings' => 'array',
+        ];
+    }
 }

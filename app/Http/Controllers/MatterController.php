@@ -25,7 +25,7 @@ class MatterController extends Controller
                     'matterType:id,name',
                     'responsibleUser:id,name',
                 ])
-                ->withCount('participants')
+                ->withCount(['participants', 'attorneys'])
                 ->orderByDesc('opened_at')
                 ->orderByDesc('id')
                 ->get([
@@ -40,6 +40,7 @@ class MatterController extends Controller
                     'billing_type',
                     'budget_amount',
                     'opened_at',
+                    'deadline_at',
                 ])
                 ->map(fn (Matter $matter): array => [
                     'id' => $matter->id,
@@ -48,14 +49,16 @@ class MatterController extends Controller
                     'client' => $matter->client->full_name
                         ?? $matter->client->organization_name
                         ?? 'Unnamed client',
-                    'matter_type' => $matter->matterType?->name ?? 'Unclassified',
-                    'responsible_user' => $matter->responsibleUser?->name ?? 'Unassigned',
+                    'matter_type' => $matter->matterType->name,
+                    'responsible_user' => $matter->responsibleUser->name,
                     'billing_type' => $matter->billing_type,
                     'budget_amount' => $matter->budget_amount,
                     'status' => $matter->status,
                     'priority' => $matter->priority,
                     'opened_at' => $matter->opened_at->toDateString(),
+                    'deadline_at' => $matter->deadline_at?->toDateString(),
                     'participants_count' => $matter->participants_count,
+                    'attorneys_count' => $matter->attorneys_count,
                 ])
                 ->all(),
             ...$this->openingData(),
@@ -84,8 +87,7 @@ class MatterController extends Controller
                 ])
                 ->sortBy('name')
                 ->values(),
-            'responsibleUsers' => User::query()
-                ->where('status', 'active')
+            'responsibleUsers' => User::attorneys()
                 ->orderBy('name')
                 ->get(['id', 'name', 'email']),
             'matterTypes' => MatterType::query()
@@ -115,10 +117,16 @@ class MatterController extends Controller
                     'default_hourly_rate',
                     'budget_amount',
                     'opened_at',
+                    'deadline_at',
                 ]),
                 'matter_number' => $generateMatterNumber->handle(),
                 'opened_by_user_id' => $request->user()->id,
             ]);
+
+            $matter->attorneys()->sync(array_values(array_unique([
+                ...$request->attorneyIds(),
+                $matter->responsible_user_id,
+            ])));
 
             $matter->participants()->createMany(
                 array_map(

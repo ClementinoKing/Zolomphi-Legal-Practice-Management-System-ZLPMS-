@@ -24,6 +24,7 @@ class PositionFactory extends Factory
             'code' => fake()->unique()->lexify('position-????'),
             'description' => fake()->optional()->sentence(),
             'is_active' => true,
+            'is_attorney' => false,
         ];
     }
 }

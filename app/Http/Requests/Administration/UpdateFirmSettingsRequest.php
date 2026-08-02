@@ -2,8 +2,10 @@
 
 namespace App\Http\Requests\Administration;
 
+use App\CurrencyConverter;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateFirmSettingsRequest extends FormRequest
 {
@@ -31,7 +33,7 @@ class UpdateFirmSettingsRequest extends FormRequest
             'tax_id' => ['nullable', 'string', 'max:100'],
             'license_number' => ['nullable', 'string', 'max:100'],
             'timezone' => ['required', 'timezone'],
-            'currency' => ['required', 'string', 'size:3', 'alpha'],
+            'currency' => ['required', 'string', Rule::in(array_keys(CurrencyConverter::SupportedCurrencies))],
         ];
     }
 }

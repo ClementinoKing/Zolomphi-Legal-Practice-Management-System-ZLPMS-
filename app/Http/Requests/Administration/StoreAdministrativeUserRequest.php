@@ -24,6 +24,7 @@ class StoreAdministrativeUserRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', Rule::unique(User::class, 'email')],
+            'password' => ['required', 'string', 'min:8', 'max:255', 'confirmed'],
             'phone' => ['nullable', 'string', 'max:50'],
             'department_id' => ['nullable', 'integer', Rule::exists('departments', 'id')->where('is_active', true)],
             'position_id' => [

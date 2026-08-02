@@ -5,13 +5,6 @@ import InputError from '@/components/input-error';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
-import {
     Dialog,
     DialogClose,
     DialogContent,
@@ -39,75 +32,72 @@ export default function PermissionManagement({
     permissions: Permission[];
 }) {
     return (
-        <Card>
-            <CardHeader className="gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <section className="grid gap-5">
+            <header className="flex flex-col gap-4 border-b pb-5 sm:flex-row sm:items-start sm:justify-between">
                 <div className="grid gap-1">
-                    <CardTitle>Permissions</CardTitle>
-                    <CardDescription>
+                    <p className="text-sm text-muted-foreground">
                         {permissions.length} permission
                         {permissions.length === 1 ? '' : 's'} define the actions
                         available in the system.
-                    </CardDescription>
+                    </p>
                 </div>
                 <CreatePermissionDialog />
-            </CardHeader>
-            <CardContent>
-                {permissions.length === 0 ? (
-                    <div className="rounded-lg border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
-                        <KeyRound className="mx-auto mb-3 size-5" />
-                        No permissions have been configured yet.
-                    </div>
-                ) : (
-                    <div className="overflow-x-auto rounded-lg border">
-                        <table className="w-full min-w-140 text-left text-sm">
-                            <thead className="bg-muted/50 text-xs tracking-wide text-muted-foreground uppercase">
-                                <tr>
-                                    <th
-                                        scope="col"
-                                        className="px-4 py-3 font-medium"
-                                    >
-                                        Permission
-                                    </th>
-                                    <th
-                                        scope="col"
-                                        className="px-4 py-3 font-medium"
-                                    >
-                                        Group
-                                    </th>
+            </header>
+            {permissions.length === 0 ? (
+                <div className="rounded-xl border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
+                    <KeyRound className="mx-auto mb-3 size-5" />
+                    No permissions have been configured yet.
+                </div>
+            ) : (
+                <div className="overflow-x-auto rounded-xl border border-border/70 bg-background">
+                    <table className="w-full min-w-140 text-left text-sm">
+                        <thead className="bg-muted/50 text-xs tracking-wide text-muted-foreground uppercase">
+                            <tr>
+                                <th
+                                    scope="col"
+                                    className="px-4 py-3 font-medium"
+                                >
+                                    Permission
+                                </th>
+                                <th
+                                    scope="col"
+                                    className="px-4 py-3 font-medium"
+                                >
+                                    Group
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                            {permissions.map((permission) => (
+                                <tr
+                                    key={permission.id}
+                                    className="transition-colors hover:bg-muted/30"
+                                >
+                                    <td className="px-4 py-3 align-top">
+                                        <p className="font-medium">
+                                            {permission.name}
+                                        </p>
+                                        <p className="mt-0.5 font-mono text-xs text-muted-foreground">
+                                            {permission.key}
+                                        </p>
+                                        {permission.description && (
+                                            <p className="mt-1 text-muted-foreground">
+                                                {permission.description}
+                                            </p>
+                                        )}
+                                    </td>
+                                    <td className="px-4 py-3 align-top">
+                                        <Badge variant="outline">
+                                            {permission.group}
+                                        </Badge>
+                                    </td>
                                 </tr>
-                            </thead>
-                            <tbody className="divide-y">
-                                {permissions.map((permission) => (
-                                    <tr
-                                        key={permission.id}
-                                        className="transition-colors hover:bg-muted/30"
-                                    >
-                                        <td className="px-4 py-3 align-top">
-                                            <p className="font-medium">
-                                                {permission.name}
-                                            </p>
-                                            <p className="mt-0.5 font-mono text-xs text-muted-foreground">
-                                                {permission.key}
-                                            </p>
-                                            {permission.description && (
-                                                <p className="mt-1 text-muted-foreground">
-                                                    {permission.description}
-                                                </p>
-                                            )}
-                                        </td>
-                                        <td className="px-4 py-3 align-top">
-                                            <Badge variant="outline">
-                                                {permission.group}
-                                            </Badge>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </CardContent>
-        </Card>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+        </section>
     );
 }
 

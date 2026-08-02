@@ -5,13 +5,6 @@ import InputError from '@/components/input-error';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
-import {
     Dialog,
     DialogClose,
     DialogContent,
@@ -24,6 +17,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
+import { useCurrency } from '@/hooks/use-currency';
 
 type ReferenceDataItem = {
     id: number;
@@ -56,116 +50,105 @@ export default function ReferenceDataManagement({
     description: string;
     items: ReferenceDataItem[];
 }) {
+    const { formatMoney } = useCurrency();
+
     return (
-        <Card>
-            <CardHeader className="gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <section className="grid gap-5">
+            <header className="flex flex-col gap-4 border-b pb-5 sm:flex-row sm:items-start sm:justify-between">
                 <div className="grid gap-1">
-                    <CardTitle>{title}</CardTitle>
-                    <CardDescription>{description}</CardDescription>
+                    <p className="text-sm text-muted-foreground">
+                        {items.length} {singularTitle}
+                        {items.length === 1 ? '' : 's'} configured for the
+                        practice.
+                    </p>
                 </div>
                 <ReferenceDataDialog
                     resource={resource}
                     singularTitle={singularTitle}
                     description={description}
                 />
-            </CardHeader>
-            <CardContent>
-                <div className="overflow-x-auto rounded-lg border">
-                    <table className="w-full min-w-200 text-left text-sm">
-                        <thead className="bg-muted/50 text-xs tracking-wide text-muted-foreground uppercase">
+            </header>
+            <div className="overflow-x-auto rounded-xl border border-border/70 bg-background">
+                <table className="w-full min-w-200 text-left text-sm">
+                    <thead className="bg-muted/50 text-xs tracking-wide text-muted-foreground uppercase">
+                        <tr>
+                            <th scope="col" className="px-4 py-3 font-medium">
+                                {singularTitle}
+                            </th>
+                            <th scope="col" className="px-4 py-3 font-medium">
+                                Code
+                            </th>
+                            <th scope="col" className="px-4 py-3 font-medium">
+                                Defaults
+                            </th>
+                            <th scope="col" className="px-4 py-3 font-medium">
+                                Order
+                            </th>
+                            <th scope="col" className="px-4 py-3 font-medium">
+                                Status
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                        {items.length === 0 ? (
                             <tr>
-                                <th
-                                    scope="col"
-                                    className="px-4 py-3 font-medium"
+                                <td
+                                    colSpan={5}
+                                    className="px-4 py-12 text-center text-muted-foreground"
                                 >
-                                    {singularTitle}
-                                </th>
-                                <th
-                                    scope="col"
-                                    className="px-4 py-3 font-medium"
-                                >
-                                    Code
-                                </th>
-                                <th
-                                    scope="col"
-                                    className="px-4 py-3 font-medium"
-                                >
-                                    Defaults
-                                </th>
-                                <th
-                                    scope="col"
-                                    className="px-4 py-3 font-medium"
-                                >
-                                    Order
-                                </th>
-                                <th
-                                    scope="col"
-                                    className="px-4 py-3 font-medium"
-                                >
-                                    Status
-                                </th>
+                                    <ListChecks className="mx-auto mb-3 size-5" />
+                                    No {title.toLowerCase()} configured yet.
+                                </td>
                             </tr>
-                        </thead>
-                        <tbody className="divide-y">
-                            {items.length === 0 ? (
-                                <tr>
-                                    <td
-                                        colSpan={5}
-                                        className="px-4 py-12 text-center text-muted-foreground"
-                                    >
-                                        <ListChecks className="mx-auto mb-3 size-5" />
-                                        No {title.toLowerCase()} configured yet.
+                        ) : (
+                            items.map((item) => (
+                                <tr
+                                    key={item.id}
+                                    className="transition-colors hover:bg-muted/30"
+                                >
+                                    <td className="px-4 py-3 align-top">
+                                        <p className="font-medium">
+                                            {item.name}
+                                        </p>
+                                        {item.description && (
+                                            <p className="mt-0.5 max-w-lg text-muted-foreground">
+                                                {item.description}
+                                            </p>
+                                        )}
+                                    </td>
+                                    <td className="px-4 py-3 align-top font-mono text-muted-foreground">
+                                        {item.code}
+                                    </td>
+                                    <td className="px-4 py-3 align-top text-muted-foreground">
+                                        {referenceDataDefaults(
+                                            resource,
+                                            item,
+                                            formatMoney,
+                                        )}
+                                    </td>
+                                    <td className="px-4 py-3 align-top text-muted-foreground">
+                                        {item.sort_order}
+                                    </td>
+                                    <td className="px-4 py-3 align-top">
+                                        <Badge
+                                            variant={
+                                                item.is_active
+                                                    ? 'default'
+                                                    : 'secondary'
+                                            }
+                                        >
+                                            {item.is_active
+                                                ? 'Active'
+                                                : 'Inactive'}
+                                        </Badge>
                                     </td>
                                 </tr>
-                            ) : (
-                                items.map((item) => (
-                                    <tr
-                                        key={item.id}
-                                        className="transition-colors hover:bg-muted/30"
-                                    >
-                                        <td className="px-4 py-3 align-top">
-                                            <p className="font-medium">
-                                                {item.name}
-                                            </p>
-                                            {item.description && (
-                                                <p className="mt-0.5 max-w-lg text-muted-foreground">
-                                                    {item.description}
-                                                </p>
-                                            )}
-                                        </td>
-                                        <td className="px-4 py-3 align-top font-mono text-muted-foreground">
-                                            {item.code}
-                                        </td>
-                                        <td className="px-4 py-3 align-top text-muted-foreground">
-                                            {referenceDataDefaults(
-                                                resource,
-                                                item,
-                                            )}
-                                        </td>
-                                        <td className="px-4 py-3 align-top text-muted-foreground">
-                                            {item.sort_order}
-                                        </td>
-                                        <td className="px-4 py-3 align-top">
-                                            <Badge
-                                                variant={
-                                                    item.is_active
-                                                        ? 'default'
-                                                        : 'secondary'
-                                                }
-                                            >
-                                                {item.is_active
-                                                    ? 'Active'
-                                                    : 'Inactive'}
-                                            </Badge>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </CardContent>
-        </Card>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        </section>
     );
 }
 
@@ -337,15 +320,16 @@ function ReferenceDataDialog({
 function referenceDataDefaults(
     resource: ReferenceDataResource,
     item: ReferenceDataItem,
+    formatMoney: (value: number | string, sourceCurrency?: string) => string,
 ): string {
     if (resource === 'matter-types') {
         return item.default_hourly_rate
-            ? `${item.default_billing_type ?? 'hourly'} · ${item.default_hourly_rate}`
+            ? `${item.default_billing_type ?? 'hourly'} · ${formatMoney(item.default_hourly_rate)}`
             : (item.default_billing_type ?? 'hourly');
     }
 
     if (resource === 'billing-items') {
-        return `${item.unit ?? 'item'} · ${item.default_amount ?? '0'} · ${item.tax_rate ?? '0'}% tax`;
+        return `${item.unit ?? 'item'} · ${formatMoney(item.default_amount ?? '0')} · ${item.tax_rate ?? '0'}% tax`;
     }
 
     if (resource === 'expense-categories') {

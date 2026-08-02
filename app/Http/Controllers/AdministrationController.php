@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Actions\Administration\CreateAdministrativeUser;
 use App\Actions\Administration\GenerateReferenceDataCode;
 use App\Actions\Administration\UpdateAdministrativeUser;
+use App\Actions\Audit\RecordAuditEvent;
+use App\CurrencyConverter;
 use App\Http\Requests\Administration\DepartmentRequest;
 use App\Http\Requests\Administration\PermissionRequest;
 use App\Http\Requests\Administration\PositionRequest;
@@ -27,14 +29,17 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Arr;
-use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
-use InvalidArgumentException;
 use Inertia\Inertia;
 use Inertia\Response;
+use InvalidArgumentException;
 
 class AdministrationController extends Controller
 {
+    public function __construct(private readonly RecordAuditEvent $audit) {}
+
     public function index(): RedirectResponse
     {
         return to_route('administration.firm');
@@ -44,6 +49,7 @@ class AdministrationController extends Controller
     {
         return Inertia::render('administration/firm', [
             'firmSettings' => $this->firmSettings(),
+            'currencies' => CurrencyConverter::SupportedCurrencies,
         ]);
     }
 
@@ -80,7 +86,7 @@ class AdministrationController extends Controller
                 ->with('department:id,name')
                 ->orderBy('department_id')
                 ->orderBy('name')
-                ->get(['id', 'department_id', 'name', 'code', 'description', 'is_active']),
+                ->get(['id', 'department_id', 'name', 'code', 'description', 'is_active', 'is_attorney']),
             'departments' => Department::query()
                 ->where('is_active', true)
                 ->orderBy('name')
@@ -145,25 +151,17 @@ class AdministrationController extends Controller
     {
         $settings = GeneralSetting::query()->firstOrNew();
         $settings->fill($request->validated())->save();
+        $this->audit->handle($request->user(), 'firm.updated', 'Updated firm settings.');
 
         return $this->success('Firm settings saved.', 'administration.firm');
     }
 
     public function storeUser(StoreAdministrativeUserRequest $request, CreateAdministrativeUser $createUser): RedirectResponse
     {
-        $user = $createUser->handle($this->administrativeUserAttributes($request));
-        $resetStatus = Password::sendResetLink(['email' => $user->email]);
+        $user = $createUser->handle($this->createAdministrativeUserAttributes($request));
+        $this->audit->handle($request->user(), 'user.created', 'Created user '.$user->name.'.', $user);
 
-        if ($resetStatus !== Password::RESET_LINK_SENT) {
-            Inertia::flash('toast', [
-                'type' => 'warning',
-                'message' => 'User created, but the password setup link could not be sent.',
-            ]);
-
-            return to_route('administration.users.index');
-        }
-
-        return $this->success('User created and invited to set a password.', 'administration.users.index');
+        return $this->success('User created. They will be asked to choose a new password at first sign-in.', 'administration.users.index');
     }
 
     public function updateUser(
@@ -180,13 +178,15 @@ class AdministrationController extends Controller
         }
 
         $updateUser->handle($user, $attributes);
+        $this->audit->handle($request->user(), 'user.updated', 'Updated user '.$user->name.'.', $user);
 
         return $this->success('User access updated.', 'administration.users.index');
     }
 
     public function storeDepartment(DepartmentRequest $request): RedirectResponse
     {
-        Department::create($request->validated());
+        $department = Department::create($request->validated());
+        $this->audit->handle($request->user(), 'department.created', 'Created department '.$department->name.'.', $department);
 
         return $this->success('Department created.', 'administration.departments.index');
     }
@@ -194,6 +194,7 @@ class AdministrationController extends Controller
     public function updateDepartment(DepartmentRequest $request, Department $department): RedirectResponse
     {
         $department->update($request->validated());
+        $this->audit->handle($request->user(), 'department.updated', 'Updated department '.$department->name.'.', $department);
 
         return $this->success('Department updated.', 'administration.departments.index');
     }
@@ -204,7 +205,8 @@ class AdministrationController extends Controller
     ): RedirectResponse {
         $attributes = $request->validated();
         $attributes['code'] = $generateReferenceDataCode->handle(Position::class, $attributes['name']);
-        Position::create($attributes);
+        $position = Position::create($attributes);
+        $this->audit->handle($request->user(), 'position.created', 'Created position '.$position->name.'.', $position);
 
         return $this->success('Position created.', 'administration.positions.index');
     }
@@ -217,6 +219,7 @@ class AdministrationController extends Controller
         $attributes = $request->validated();
         $attributes['code'] = $generateReferenceDataCode->handle(Position::class, $attributes['name'], $position->id);
         $position->update($attributes);
+        $this->audit->handle($request->user(), 'position.updated', 'Updated position '.$position->name.'.', $position);
 
         return $this->success('Position updated.', 'administration.positions.index');
     }
@@ -225,6 +228,7 @@ class AdministrationController extends Controller
     {
         $role = Role::create(Arr::only($request->validated(), ['name', 'description']));
         $this->syncRolePermissions($role, $request->validated('permission_ids'));
+        $this->audit->handle($request->user(), 'role.created', 'Created role '.$role->name.'.', $role);
 
         return $this->success('Role created.', 'administration.roles.index');
     }
@@ -233,13 +237,15 @@ class AdministrationController extends Controller
     {
         $role->update(Arr::only($request->validated(), ['name', 'description']));
         $this->syncRolePermissions($role, $request->validated('permission_ids'));
+        $this->audit->handle($request->user(), 'role.updated', 'Updated role '.$role->name.'.', $role);
 
         return $this->success('Role updated.', 'administration.roles.index');
     }
 
     public function storePermission(PermissionRequest $request): RedirectResponse
     {
-        Permission::create($request->validated());
+        $permission = Permission::create($request->validated());
+        $this->audit->handle($request->user(), 'permission.created', 'Created permission '.$permission->name.'.', $permission);
 
         return $this->success('Permission created.', 'administration.permissions.index');
     }
@@ -247,6 +253,7 @@ class AdministrationController extends Controller
     public function updatePermission(PermissionRequest $request, Permission $permission): RedirectResponse
     {
         $permission->update($request->validated());
+        $this->audit->handle($request->user(), 'permission.updated', 'Updated permission '.$permission->name.'.', $permission);
 
         return $this->success('Permission updated.', 'administration.permissions.index');
     }
@@ -255,12 +262,12 @@ class AdministrationController extends Controller
         ReferenceDataRequest $request,
         string $resource,
         GenerateReferenceDataCode $generateReferenceDataCode,
-    ): RedirectResponse
-    {
+    ): RedirectResponse {
         $model = $this->referenceDataModel($resource);
         $attributes = $request->validated();
         $attributes['code'] = $generateReferenceDataCode->handle($model, $attributes['name']);
-        $model::create($attributes);
+        $referenceData = $model::create($attributes);
+        $this->audit->handle($request->user(), 'reference_data.created', 'Created configuration item '.$attributes['name'].'.', $referenceData);
 
         return $this->success('Configuration item created.', $this->referenceDataRoute($resource));
     }
@@ -280,6 +287,7 @@ class AdministrationController extends Controller
             (int) $referenceData->getKey(),
         );
         $referenceData->update($attributes);
+        $this->audit->handle($request->user(), 'reference_data.updated', 'Updated configuration item '.$attributes['name'].'.', $referenceData);
 
         return $this->success('Configuration item updated.', $this->referenceDataRoute($resource));
     }
@@ -340,6 +348,19 @@ class AdministrationController extends Controller
     }
 
     /**
+     * @return array{name: string, email: string, password: string, phone: string|null, department_id: int|null, position_id: int|null, status: string, role_ids: list<int>}
+     */
+    private function createAdministrativeUserAttributes(StoreAdministrativeUserRequest $request): array
+    {
+        $attributes = $this->administrativeUserAttributes($request);
+
+        return [
+            ...$attributes,
+            'password' => $request->string('password')->toString(),
+        ];
+    }
+
+    /**
      * @return array<string, string|null>
      */
     private function firmSettings(): array
@@ -365,7 +386,7 @@ class AdministrationController extends Controller
     }
 
     /**
-     * @return array<int, array{id: int, name: string, email: string, phone: string|null, department: string|null, position: string|null, status: string, email_verified_at: \Illuminate\Support\Carbon|null, role_ids: list<int>, roles: \Illuminate\Support\Collection<int, string>}>
+     * @return array<int, array{id: int, name: string, email: string, phone: string|null, department: string|null, position: string|null, status: string, email_verified_at: Carbon|null, role_ids: list<int>, roles: Collection<int, string>}>
      */
     private function usersPayload(): array
     {
@@ -396,7 +417,7 @@ class AdministrationController extends Controller
     }
 
     /**
-     * @return array<int, array{id: int, name: string, description: string|null, user_count: int<0, max>, permission_ids: list<int>, permissions: \Illuminate\Support\Collection<int, array{key: string, name: string, group: string}>}>
+     * @return array<int, array{id: int, name: string, description: string|null, user_count: int<0, max>, permission_ids: list<int>, permissions: Collection<int, array{key: string, name: string, group: string}>}>
      */
     private function rolesPayload(): array
     {

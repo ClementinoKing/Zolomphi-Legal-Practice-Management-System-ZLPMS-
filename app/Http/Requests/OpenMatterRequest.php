@@ -8,6 +8,7 @@ use App\Models\User;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class OpenMatterRequest extends FormRequest
 {
@@ -45,6 +46,13 @@ class OpenMatterRequest extends FormRequest
             'default_hourly_rate' => ['nullable', 'numeric', 'min:0', 'required_if:billing_type,hourly'],
             'budget_amount' => ['nullable', 'numeric', 'min:0'],
             'opened_at' => ['required', 'date'],
+            'deadline_at' => ['nullable', 'date', 'after_or_equal:opened_at'],
+            'attorney_ids' => ['nullable', 'array', 'max:20'],
+            'attorney_ids.*' => [
+                'integer',
+                'distinct',
+                Rule::exists(User::class, 'id')->where('status', 'active'),
+            ],
             'participants' => ['nullable', 'array', 'max:20'],
             'participants.*.role' => ['required_with:participants', 'string', 'max:100'],
             'participants.*.type' => ['required_with:participants', Rule::in(['individual', 'organization'])],
@@ -56,6 +64,36 @@ class OpenMatterRequest extends FormRequest
     }
 
     /**
+     * @return array<int, callable(Validator): void>
+     */
+    public function after(): array
+    {
+        return [function (Validator $validator): void {
+            if ($validator->errors()->has('responsible_user_id') || $validator->errors()->has('attorney_ids')) {
+                return;
+            }
+
+            $attorneyIds = $this->attorneyIds();
+            $responsibleAttorneyId = $this->integer('responsible_user_id');
+            $selectedIds = array_values(array_unique([...$attorneyIds, $responsibleAttorneyId]));
+            $eligibleIds = User::attorneys()
+                ->whereIn('id', $selectedIds)
+                ->pluck('id')
+                ->all();
+
+            if (! in_array($responsibleAttorneyId, $eligibleIds, true)) {
+                $validator->errors()->add('responsible_user_id', 'The responsible attorney must hold an active attorney position.');
+            }
+
+            foreach ($attorneyIds as $index => $attorneyId) {
+                if (! in_array($attorneyId, $eligibleIds, true)) {
+                    $validator->errors()->add("attorney_ids.$index", 'Matter participants must hold active attorney positions.');
+                }
+            }
+        }];
+    }
+
+    /**
      * @return list<array{role: string, type: 'individual'|'organization', name: string, contact_person?: string, email?: string, phone?: string}>
      */
     public function participants(): array
@@ -63,5 +101,22 @@ class OpenMatterRequest extends FormRequest
         $participants = $this->validated('participants', []);
 
         return is_array($participants) ? array_values($participants) : [];
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function attorneyIds(): array
+    {
+        $attorneyIds = $this->validated('attorney_ids', []);
+
+        if (! is_array($attorneyIds)) {
+            return [];
+        }
+
+        return array_values(array_map(
+            fn (int|string $attorneyId): int => (int) $attorneyId,
+            $attorneyIds,
+        ));
     }
 }

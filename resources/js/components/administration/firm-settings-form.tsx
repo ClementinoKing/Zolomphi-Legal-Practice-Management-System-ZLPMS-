@@ -32,8 +32,10 @@ type FirmSettings = {
 
 export default function FirmSettingsForm({
     settings,
+    currencies,
 }: {
     settings: FirmSettings;
+    currencies: Record<string, string>;
 }) {
     return (
         <Card>
@@ -140,14 +142,27 @@ export default function FirmSettingsForm({
                                     error={errors.timezone}
                                     required
                                 />
-                                <Field
-                                    label="Currency"
-                                    name="currency"
-                                    defaultValue={settings.currency}
-                                    error={errors.currency}
-                                    required
-                                    maxLength={3}
-                                />
+                                <div className="grid gap-2">
+                                    <Label htmlFor="currency">
+                                        Display currency
+                                    </Label>
+                                    <select
+                                        id="currency"
+                                        name="currency"
+                                        defaultValue={settings.currency}
+                                        className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                                        required
+                                    >
+                                        {Object.entries(currencies).map(
+                                            ([code, label]) => (
+                                                <option key={code} value={code}>
+                                                    {label}
+                                                </option>
+                                            ),
+                                        )}
+                                    </select>
+                                    <InputError message={errors.currency} />
+                                </div>
                             </div>
 
                             <div>

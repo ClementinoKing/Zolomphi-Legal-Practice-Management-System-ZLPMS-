@@ -1,15 +1,9 @@
+import { Link } from '@inertiajs/react';
 import { Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import OpenMatterForm from '@/components/open-matter-form';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
 import {
     Dialog,
     DialogContent,
@@ -18,6 +12,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { useCurrency } from '@/hooks/use-currency';
 
 type Matter = {
     id: number;
@@ -31,7 +26,9 @@ type Matter = {
     status: string;
     priority: string;
     opened_at: string;
+    deadline_at: string | null;
     participants_count: number;
+    attorneys_count: number;
 };
 
 type Props = {
@@ -51,6 +48,7 @@ export default function MatterManagement({
     matterTypes,
     today,
 }: Props) {
+    const { formatMoney } = useCurrency();
     const [isOpen, setIsOpen] = useState(false);
     const [search, setSearch] = useState('');
     const [status, setStatus] = useState('all');
@@ -101,59 +99,55 @@ export default function MatterManagement({
             return '—';
         }
 
-        return new Intl.NumberFormat('en-GB', {
-            style: 'currency',
-            currency: 'MWK',
-            maximumFractionDigits: 0,
-        }).format(Number(value));
+        return formatMoney(value, 'MWK', 0);
     }
 
     return (
-        <Card>
-            <CardHeader className="gap-4">
+        <section className="grid gap-5">
+            <header className="flex flex-col gap-4 border-b pb-5 sm:flex-row sm:items-start sm:justify-between">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="grid gap-1">
-                        <CardTitle>Matters</CardTitle>
-                        <CardDescription>
-                            Track all active legal work and open new matters for
-                            clients.
-                        </CardDescription>
+                        <p className="text-sm text-muted-foreground">
+                            {filteredMatters.length} of {matters.length} matter
+                            {matters.length === 1 ? '' : 's'} in the practice
+                            workspace.
+                        </p>
                     </div>
-                    <Button onClick={() => setIsOpen(true)}>Open matter</Button>
                 </div>
-                <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_10rem]">
-                    <div className="relative">
-                        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input
-                            aria-label="Search matters"
-                            className="pl-9"
-                            value={search}
-                            placeholder="Search matter, client, type, or attorney"
-                            onChange={(event) => {
-                                setSearch(event.target.value);
-                                setPage(1);
-                            }}
-                        />
-                    </div>
-                    <select
-                        aria-label="Filter matters by status"
-                        className="h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs"
-                        value={status}
+                <Button onClick={() => setIsOpen(true)}>Open matter</Button>
+            </header>
+            <div className="grid gap-3 rounded-xl bg-muted/35 p-3 md:grid-cols-[minmax(0,1fr)_10rem]">
+                <div className="relative">
+                    <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                        aria-label="Search matters"
+                        className="bg-background pl-9"
+                        value={search}
+                        placeholder="Search matter, client, type, or attorney"
                         onChange={(event) => {
-                            setStatus(event.target.value);
+                            setSearch(event.target.value);
                             setPage(1);
                         }}
-                    >
-                        <option value="all">All statuses</option>
-                        <option value="open">Open</option>
-                        <option value="pending">Pending</option>
-                        <option value="on_hold">On hold</option>
-                    </select>
+                    />
                 </div>
-            </CardHeader>
-            <CardContent>
-                <div className="overflow-x-auto rounded-lg border">
-                    <table className="w-full min-w-300 text-left text-sm">
+                <select
+                    aria-label="Filter matters by status"
+                    className="h-9 rounded-md border border-input bg-background px-3 text-sm shadow-xs"
+                    value={status}
+                    onChange={(event) => {
+                        setStatus(event.target.value);
+                        setPage(1);
+                    }}
+                >
+                    <option value="all">All statuses</option>
+                    <option value="open">Open</option>
+                    <option value="pending">Pending</option>
+                    <option value="on_hold">On hold</option>
+                </select>
+            </div>
+            <div className="grid gap-4">
+                <div className="overflow-x-auto rounded-xl border border-border/70 bg-background">
+                    <table className="w-full min-w-350 text-left text-sm">
                         <thead className="bg-muted/50 text-xs tracking-wide text-muted-foreground uppercase">
                             <tr>
                                 <th
@@ -184,7 +178,7 @@ export default function MatterManagement({
                                     scope="col"
                                     className="px-4 py-3 font-medium"
                                 >
-                                    Participants
+                                    Attorney team
                                 </th>
                                 <th
                                     scope="col"
@@ -209,7 +203,19 @@ export default function MatterManagement({
                                     scope="col"
                                     className="px-4 py-3 font-medium"
                                 >
+                                    Deadline
+                                </th>
+                                <th
+                                    scope="col"
+                                    className="px-4 py-3 font-medium"
+                                >
                                     Status
+                                </th>
+                                <th
+                                    scope="col"
+                                    className="px-4 py-3 text-right font-medium"
+                                >
+                                    Actions
                                 </th>
                             </tr>
                         </thead>
@@ -217,7 +223,7 @@ export default function MatterManagement({
                             {visibleMatters.length === 0 ? (
                                 <tr>
                                     <td
-                                        colSpan={7}
+                                        colSpan={9}
                                         className="px-4 py-12 text-center text-muted-foreground"
                                     >
                                         No matters match the current filters.
@@ -260,24 +266,49 @@ export default function MatterManagement({
                                             </p>
                                         </td>
                                         <td className="px-4 py-3 align-top text-muted-foreground">
-                                            {matter.participants_count}
+                                            <p>
+                                                {matter.attorneys_count}{' '}
+                                                attorney
+                                                {matter.attorneys_count === 1
+                                                    ? ''
+                                                    : 's'}
+                                            </p>
+                                            <p className="mt-0.5 text-xs">
+                                                {matter.participants_count}{' '}
+                                                external
+                                            </p>
                                         </td>
                                         <td className="px-4 py-3 align-top text-muted-foreground">
                                             {matter.opened_at}
                                         </td>
+                                        <td className="px-4 py-3 align-top text-muted-foreground">
+                                            {matter.deadline_at ?? '—'}
+                                        </td>
                                         <td className="px-4 py-3 align-top">
                                             <Badge
-                                                variant={
-                                                    matter.status === 'open'
-                                                        ? 'default'
-                                                        : 'secondary'
-                                                }
+                                                variant="outline"
+                                                className={matterStatusClassName(
+                                                    matter.status,
+                                                )}
                                             >
                                                 {matter.status.replace(
                                                     '_',
                                                     ' ',
                                                 )}
                                             </Badge>
+                                        </td>
+                                        <td className="px-4 py-3 text-right align-top">
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                asChild
+                                            >
+                                                <Link
+                                                    href={`/matters/${matter.id}`}
+                                                >
+                                                    Open workspace
+                                                </Link>
+                                            </Button>
                                         </td>
                                     </tr>
                                 ))
@@ -313,7 +344,7 @@ export default function MatterManagement({
                         </Button>
                     </div>
                 </div>
-            </CardContent>
+            </div>
             <Dialog open={isOpen} onOpenChange={setIsOpen}>
                 <DialogContent className="max-h-[calc(100vh-2rem)] w-[calc(100%-2rem)] overflow-x-hidden overflow-y-auto sm:max-w-3xl">
                     <DialogHeader>
@@ -331,6 +362,21 @@ export default function MatterManagement({
                     />
                 </DialogContent>
             </Dialog>
-        </Card>
+        </section>
     );
+}
+
+function matterStatusClassName(status: string): string {
+    const classes: Record<string, string> = {
+        open: 'border-emerald-200 bg-emerald-100 text-emerald-800 dark:border-emerald-900/70 dark:bg-emerald-950/50 dark:text-emerald-300',
+        pending:
+            'border-amber-200 bg-amber-100 text-amber-800 dark:border-amber-900/70 dark:bg-amber-950/50 dark:text-amber-300',
+        on_hold:
+            'border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200',
+        closed: 'border-blue-200 bg-blue-100 text-blue-800 dark:border-blue-900/70 dark:bg-blue-950/50 dark:text-blue-300',
+        cancelled:
+            'border-red-200 bg-red-100 text-red-800 dark:border-red-900/70 dark:bg-red-950/50 dark:text-red-300',
+    };
+
+    return classes[status] ?? classes.pending;
 }

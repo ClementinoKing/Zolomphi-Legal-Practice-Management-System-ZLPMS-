@@ -4,9 +4,10 @@ import { firm } from '@/routes/administration';
 
 type Props = {
     firmSettings: Parameters<typeof FirmSettingsForm>[0]['settings'];
+    currencies: Record<string, string>;
 };
 
-export default function Firm({ firmSettings }: Props) {
+export default function Firm({ firmSettings, currencies }: Props) {
     return (
         <>
             <Head title="Firm" />
@@ -23,7 +24,10 @@ export default function Firm({ firmSettings }: Props) {
                         and regional defaults for your practice.
                     </p>
                 </header>
-                <FirmSettingsForm settings={firmSettings} />
+                <FirmSettingsForm
+                    settings={firmSettings}
+                    currencies={currencies}
+                />
             </div>
         </>
     );
