@@ -6,6 +6,8 @@ use App\Actions\Clients\GenerateClientNumber;
 use App\Actions\CompanyDrive\EnsureClientDriveFolder;
 use App\Http\Requests\ClientRequest;
 use App\Models\Client;
+use App\Models\GeneralSetting;
+use App\Services\PracticeRecordSettings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
@@ -16,6 +18,8 @@ class ClientController extends Controller
 {
     public function index(): Response
     {
+        $settings = app(PracticeRecordSettings::class)->clientValues(GeneralSetting::query()->first());
+
         return Inertia::render('clients/index', [
             'clients' => Client::query()
                 ->orderBy('name')
@@ -38,6 +42,7 @@ class ClientController extends Controller
                     'postal_code',
                     'country',
                     'notes',
+                    'metadata',
                     'status',
                 ])
                 ->map(fn (Client $client): array => [
@@ -58,9 +63,11 @@ class ClientController extends Controller
                     'postal_code' => $client->postal_code,
                     'country' => $client->country,
                     'notes' => $client->notes,
+                    'custom_fields' => $client->metadata['custom_fields'] ?? [],
                     'is_active' => $client->status === 'active',
                 ])
                 ->all(),
+            'customFields' => $settings['fields'],
         ]);
     }
 
@@ -72,6 +79,7 @@ class ClientController extends Controller
         DB::transaction(function () use ($request, $generateClientNumber, $ensureClientDriveFolder): void {
             $attributes = $this->clientAttributes($request);
             $attributes['client_number'] = $generateClientNumber->handle();
+            $attributes['metadata'] = ['custom_fields' => $request->customFields()];
             $client = Client::create($attributes);
             $ensureClientDriveFolder->handle($client, $request->user());
         });
@@ -84,7 +92,15 @@ class ClientController extends Controller
         Client $client,
         EnsureClientDriveFolder $ensureClientDriveFolder,
     ): RedirectResponse {
-        $client->update($this->clientAttributes($request));
+        $attributes = $this->clientAttributes($request);
+        $attributes['metadata'] = [
+            ...($client->metadata ?? []),
+            'custom_fields' => [
+                ...($client->metadata['custom_fields'] ?? []),
+                ...$request->customFields(),
+            ],
+        ];
+        $client->update($attributes);
         $ensureClientDriveFolder->handle($client, $request->user());
 
         return $this->success('Client updated.');

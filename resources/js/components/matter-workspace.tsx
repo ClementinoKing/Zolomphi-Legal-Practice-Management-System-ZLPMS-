@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import { useCurrency } from '@/hooks/use-currency';
+import type { CustomFieldDefinition } from '@/types/custom-fields';
 
 type User = { id: number; name: string; email: string };
 type FormValues = Record<
@@ -125,6 +126,9 @@ type Matter = {
         charged_at: string;
         billing_item?: { name: string };
     }>;
+    metadata: {
+        custom_fields?: Record<string, boolean | number | string>;
+    } | null;
 };
 
 type Props = {
@@ -155,6 +159,7 @@ type Props = {
         expenses_amount: number;
         flat_fees_amount: number;
     };
+    customFields: CustomFieldDefinition[];
 };
 
 type Tab =
@@ -258,8 +263,12 @@ export default function MatterWorkspace(props: Props) {
     );
 }
 
-function Overview({ matter, summary, activity }: Props) {
+function Overview({ matter, summary, activity, customFields }: Props) {
     const { formatMoney } = useCurrency();
+    const customValues = matter.metadata?.custom_fields ?? {};
+    const configuredFields = customFields.filter((field) =>
+        Object.prototype.hasOwnProperty.call(customValues, field.key),
+    );
 
     return (
         <div className="grid gap-6">
@@ -327,6 +336,25 @@ function Overview({ matter, summary, activity }: Props) {
                             }
                         />
                     </dl>
+                    {configuredFields.length > 0 && (
+                        <>
+                            <h3 className="mt-6 border-t pt-5 font-semibold">
+                                Additional information
+                            </h3>
+                            <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
+                                {configuredFields.map((field) => (
+                                    <Detail
+                                        key={field.key}
+                                        label={field.label}
+                                        value={formatCustomValue(
+                                            customValues[field.key],
+                                            field.type,
+                                        )}
+                                    />
+                                ))}
+                            </dl>
+                        </>
+                    )}
                 </section>
                 <section className="rounded-xl border border-border/70 bg-background p-5">
                     <h2 className="font-semibold">Recent activity</h2>
@@ -349,6 +377,21 @@ function Overview({ matter, summary, activity }: Props) {
             </div>
         </div>
     );
+}
+
+function formatCustomValue(
+    value: boolean | number | string | undefined,
+    type: CustomFieldDefinition['type'],
+): string {
+    if (value === undefined || value === '') {
+        return '—';
+    }
+
+    if (type === 'boolean') {
+        return value === true || value === 1 || value === '1' ? 'Yes' : 'No';
+    }
+
+    return String(value);
 }
 
 function Tasks(props: Props) {

@@ -4,24 +4,45 @@ use App\Http\Controllers\AdministrationController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\ClientController;
+use App\Http\Controllers\ClientSettingsController;
 use App\Http\Controllers\CompanyFilesController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\GlobalSearchController;
+use App\Http\Controllers\InternalTaskController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\InvoiceSettingsController;
 use App\Http\Controllers\MatterController;
+use App\Http\Controllers\MatterSettingsController;
 use App\Http\Controllers\MatterWorkspaceController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\TimeTrackerController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/login')->name('home');
 
 Route::middleware(['auth', 'verified', 'can:access-administration'])->group(function (): void {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
+    Route::get('search/suggestions', [GlobalSearchController::class, 'suggestions'])->name('search.suggestions');
+    Route::get('search', [GlobalSearchController::class, 'index'])->name('search.index');
+    Route::inertia('help', 'help/index')->name('help.index');
     Route::get('reports', [ReportController::class, 'index'])->name('reports.index');
     Route::get('audit-logs', [AuditLogController::class, 'index'])->name('audit-logs.index');
 });
+
+Route::middleware(['auth', 'verified', 'can:access-administration'])
+    ->prefix('time-tracker')
+    ->name('time-tracker.')
+    ->group(function (): void {
+        Route::get('matters', [TimeTrackerController::class, 'matters'])->name('matters');
+        Route::post('/', [TimeTrackerController::class, 'start'])->name('start');
+        Route::patch('{timeTracker}/pause', [TimeTrackerController::class, 'pause'])->name('pause');
+        Route::patch('{timeTracker}/resume', [TimeTrackerController::class, 'resume'])->name('resume');
+        Route::patch('{timeTracker}/stop', [TimeTrackerController::class, 'stop'])->name('stop');
+        Route::post('{timeTracker}/complete', [TimeTrackerController::class, 'complete'])->name('complete');
+        Route::delete('{timeTracker}', [TimeTrackerController::class, 'discard'])->name('discard');
+    });
 
 Route::middleware(['auth', 'verified'])
     ->prefix('notifications')
@@ -30,6 +51,16 @@ Route::middleware(['auth', 'verified'])
         Route::get('/', [NotificationController::class, 'index'])->name('index');
         Route::patch('{notification}/read', [NotificationController::class, 'markRead'])->name('read');
         Route::patch('read-all', [NotificationController::class, 'markAllRead'])->name('read-all');
+    });
+
+Route::middleware(['auth', 'verified'])
+    ->prefix('internal-tasks')
+    ->name('internal-tasks.')
+    ->group(function (): void {
+        Route::get('/', [InternalTaskController::class, 'index'])->name('index');
+        Route::post('/', [InternalTaskController::class, 'store'])->name('store');
+        Route::patch('{internalTask}', [InternalTaskController::class, 'update'])->name('update');
+        Route::patch('{internalTask}/complete', [InternalTaskController::class, 'complete'])->name('complete');
     });
 
 Route::middleware(['auth', 'verified', 'can:access-administration'])
@@ -106,6 +137,8 @@ Route::middleware(['auth', 'verified', 'can:access-administration'])
     ->name('matters.')
     ->group(function (): void {
         Route::get('/', [MatterController::class, 'index'])->name('index');
+        Route::get('settings', [MatterSettingsController::class, 'edit'])->name('settings.edit');
+        Route::put('settings', [MatterSettingsController::class, 'update'])->name('settings.update');
         Route::get('open', [MatterController::class, 'open'])->name('open');
         Route::post('/', [MatterController::class, 'store'])->name('store');
         Route::get('{matter}', [MatterWorkspaceController::class, 'show'])->name('show');
@@ -125,6 +158,8 @@ Route::middleware(['auth', 'verified', 'can:access-administration'])
     ->name('clients.')
     ->group(function (): void {
         Route::get('/', [ClientController::class, 'index'])->name('index');
+        Route::get('settings', [ClientSettingsController::class, 'edit'])->name('settings.edit');
+        Route::put('settings', [ClientSettingsController::class, 'update'])->name('settings.update');
         Route::post('/', [ClientController::class, 'store'])->name('store');
         Route::patch('{client}', [ClientController::class, 'update'])->name('update');
     });

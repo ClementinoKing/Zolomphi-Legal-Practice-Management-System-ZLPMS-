@@ -18,6 +18,7 @@ use App\Models\Position;
 use App\Models\Role;
 use App\Models\Task;
 use App\Models\User;
+use App\Support\PracticeAccessCatalog;
 use Database\Seeders\AdministrationSeeder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
@@ -28,13 +29,16 @@ use Inertia\Testing\AssertableInertia as Assert;
 
 function administrationUser(): User
 {
-    $permission = Permission::query()->create([
-        'key' => 'administration.access',
+    $accessPermission = Permission::query()->firstOrCreate(['key' => 'administration.access'], [
         'name' => 'Access administration',
         'group' => 'Administration',
     ]);
-    $role = Role::query()->create(['name' => 'Super Admin']);
-    $role->assignedPermissions()->attach($permission);
+    $rolePermission = Permission::query()->firstOrCreate(['key' => 'roles.manage'], [
+        'name' => 'Manage roles',
+        'group' => 'Access control',
+    ]);
+    $role = Role::query()->firstOrCreate(['name' => 'Super Admin']);
+    $role->assignedPermissions()->syncWithoutDetaching([$accessPermission->id, $rolePermission->id]);
 
     $user = User::factory()->create();
     $user->roles()->attach($role);
@@ -88,7 +92,7 @@ test('the administration seeder grants the initial firm user super admin access'
 
     $this->seed(AdministrationSeeder::class);
 
-    expect(Permission::query()->count())->toBe(10);
+    expect(Permission::query()->count())->toBe(count(PracticeAccessCatalog::permissions()));
     expect($initialUser->refresh()->roles()->pluck('name')->all())->toContain('Super Admin');
     expect($initialUser->hasPermission('administration.access'))->toBeTrue();
 });
@@ -193,6 +197,42 @@ test('administrators can save firm settings and create access records', function
 
     expect($user->refresh()->name)->toBe('Updated Practice User');
     expect($user->status)->toBe('inactive');
+});
+
+test('only users with the role-management permission can edit role permissions', function () {
+    $accessPermission = Permission::query()->create([
+        'key' => 'administration.access',
+        'name' => 'Access administration',
+        'group' => 'Administration',
+    ]);
+    $viewerRole = Role::query()->create(['name' => 'Firm Administrator']);
+    $viewerRole->assignedPermissions()->attach($accessPermission);
+    $viewer = User::factory()->create();
+    $viewer->roles()->attach($viewerRole);
+
+    $targetRole = Role::query()->create(['name' => 'Attorney']);
+    $clientPermission = Permission::query()->create([
+        'key' => 'clients.view',
+        'name' => 'View clients',
+        'group' => 'Clients',
+    ]);
+
+    $this->actingAs($viewer)
+        ->patch(route('administration.roles.update', $targetRole), [
+            'name' => 'Attorney',
+            'permission_ids' => [$clientPermission->id],
+        ])
+        ->assertForbidden();
+
+    $this->actingAs(administrationUser())
+        ->patch(route('administration.roles.update', $targetRole), [
+            'name' => 'Attorney',
+            'permission_ids' => [$clientPermission->id],
+        ])
+        ->assertRedirect(route('administration.roles.index', absolute: false));
+
+    expect($targetRole->refresh()->assignedPermissions()->pluck('key')->all())
+        ->toBe(['clients.view']);
 });
 
 test('administrators can choose a supported firm display currency', function () {

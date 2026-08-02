@@ -10,6 +10,8 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
@@ -85,6 +87,34 @@ class User extends Authenticatable implements PasskeyUser
     public function assignedPosition(): BelongsTo
     {
         return $this->belongsTo(Position::class, 'position_id');
+    }
+
+    /**
+     * @return HasOne<TimeTracker, $this>
+     */
+    public function timeTracker(): HasOne
+    {
+        return $this->hasOne(TimeTracker::class);
+    }
+
+    /**
+     * Internal tasks created by this user.
+     *
+     * @return HasMany<InternalTask, $this>
+     */
+    public function createdInternalTasks(): HasMany
+    {
+        return $this->hasMany(InternalTask::class, 'created_by_user_id');
+    }
+
+    /**
+     * Internal tasks assigned to this user.
+     *
+     * @return BelongsToMany<InternalTask, $this>
+     */
+    public function assignedInternalTasks(): BelongsToMany
+    {
+        return $this->belongsToMany(InternalTask::class, 'internal_task_user')->withPivot('assigned_at');
     }
 
     /**

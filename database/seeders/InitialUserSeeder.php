@@ -9,7 +9,7 @@ use LogicException;
 
 class InitialUserSeeder extends Seeder
 {
-    private const string InitialUserEmail = 'paliponsemw@gmail.com';
+    private const INITIAL_USER_EMAIL = 'paliponsemw@gmail.com';
 
     /**
      * Create the firm's initial sign-in account when it does not already exist.
@@ -23,7 +23,7 @@ class InitialUserSeeder extends Seeder
         }
 
         $user = User::query()->firstOrCreate(
-            ['email' => self::InitialUserEmail],
+            ['email' => self::INITIAL_USER_EMAIL],
             [
                 'name' => 'Paliponse Technologies',
                 'password' => Hash::make($password),

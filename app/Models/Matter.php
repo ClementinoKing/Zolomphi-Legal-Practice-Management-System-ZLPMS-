@@ -134,6 +134,14 @@ class Matter extends Model
     }
 
     /**
+     * @return HasMany<TimeTracker, $this>
+     */
+    public function timeTrackers(): HasMany
+    {
+        return $this->hasMany(TimeTracker::class);
+    }
+
+    /**
      * @return HasMany<Document, $this>
      */
     public function documents(): HasMany

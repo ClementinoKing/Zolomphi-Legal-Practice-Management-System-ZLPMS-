@@ -11,6 +11,7 @@ import {
     ReceiptText,
     KeyRound,
     LayoutGrid,
+    ListTodo,
     Scale,
     ScrollText,
     ShieldCheck,
@@ -42,10 +43,13 @@ import { index as users } from '@/routes/administration/users';
 import { index as auditLogs } from '@/routes/audit-logs';
 import { index as calendar } from '@/routes/calendar';
 import { index as clients } from '@/routes/clients';
+import { edit as clientSettings } from '@/routes/clients/settings';
 import { index as files } from '@/routes/files';
+import { index as internalTasks } from '@/routes/internal-tasks';
 import { index as invoices } from '@/routes/invoices';
 import { edit as invoiceSettings } from '@/routes/invoices/settings';
 import { index as matters } from '@/routes/matters';
+import { edit as matterSettings } from '@/routes/matters/settings';
 import { index as payments } from '@/routes/payments';
 import { index as reports } from '@/routes/reports';
 import type { Auth, NavItem } from '@/types';
@@ -53,22 +57,26 @@ import type { Auth, NavItem } from '@/types';
 export function AppSidebar() {
     const { auth } = usePage<{ auth: Auth }>().props;
     const practiceNavItems: NavItem[] = [
-        {
-            title: 'Dashboard',
-            href: dashboard(),
-            icon: LayoutGrid,
-        },
         ...(auth.canAccessAdministration
             ? [
                   {
                       title: 'Clients',
                       href: clients(),
                       icon: BriefcaseBusiness,
+                      children: [
+                          { title: 'All clients', href: clients() },
+                          { title: 'Client settings', href: clientSettings() },
+                      ],
                   },
                   {
                       title: 'Matters',
                       href: matters(),
                       icon: Scale,
+                      children: [
+                          { title: 'All matters', href: matters() },
+                          { title: 'Matter types', href: matterTypes() },
+                          { title: 'Matter settings', href: matterSettings() },
+                      ],
                   },
                   {
                       title: 'Calendar',
@@ -86,16 +94,40 @@ export function AppSidebar() {
                       icon: ReceiptText,
                       children: [
                           { title: 'All invoices', href: invoices() },
-                          { title: 'Invoice settings', href: invoiceSettings() },
+                          {
+                              title: 'Invoice settings',
+                              href: invoiceSettings(),
+                          },
                       ],
                   },
                   { title: 'Payments', href: payments(), icon: Wallet },
+              ]
+            : []),
+    ];
+
+    const monitoringNavItems: NavItem[] = [
+        {
+            title: 'Dashboard',
+            href: dashboard(),
+            icon: LayoutGrid,
+        },
+        {
+            title: 'Internal tasks',
+            href: internalTasks(),
+            icon: ListTodo,
+        },
+        ...(auth.canAccessAdministration
+            ? [
                   {
                       title: 'Reports',
                       href: reports(),
                       icon: ChartNoAxesCombined,
                   },
-                  { title: 'Audit logs', href: auditLogs(), icon: ScrollText },
+                  {
+                      title: 'Audit logs',
+                      href: auditLogs(),
+                      icon: ScrollText,
+                  },
               ]
             : []),
     ];
@@ -139,11 +171,6 @@ export function AppSidebar() {
         : [];
     const billingConfigurationNavItems: NavItem[] = auth.canAccessAdministration
         ? [
-              {
-                  title: 'Matter types',
-                  href: matterTypes(),
-                  icon: Scale,
-              },
               {
                   title: 'Billing items',
                   href: billingItems(),
@@ -196,7 +223,8 @@ export function AppSidebar() {
             </SidebarHeader>
 
             <SidebarContent>
-                <NavMain label="Practice" items={practiceNavItems} />
+                <NavMain label="Monitor & control" items={monitoringNavItems} />
+                <NavMain label="Practice management" items={practiceNavItems} />
                 {firmAdministrationNavItems.length > 0 && (
                     <NavMain
                         label="Firm administration"
@@ -211,7 +239,7 @@ export function AppSidebar() {
                 )}
                 {billingConfigurationNavItems.length > 0 && (
                     <NavMain
-                        label="Billing & configuration"
+                        label="Billing configuration"
                         items={billingConfigurationNavItems}
                     />
                 )}

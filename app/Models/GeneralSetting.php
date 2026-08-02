@@ -21,6 +21,8 @@ use Illuminate\Database\Eloquent\Model;
     'timezone',
     'currency',
     'invoice_settings',
+    'client_settings',
+    'matter_settings',
 ])]
 class GeneralSetting extends Model
 {
@@ -39,6 +41,8 @@ class GeneralSetting extends Model
     {
         return [
             'invoice_settings' => 'array',
+            'client_settings' => 'array',
+            'matter_settings' => 'array',
         ];
     }
 }

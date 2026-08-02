@@ -2,8 +2,8 @@
 
 namespace App\Providers;
 
-use Carbon\CarbonImmutable;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -49,6 +49,7 @@ class AppServiceProvider extends ServiceProvider
             : null,
         );
 
+        Gate::before(fn (User $user, string $ability): ?bool => $user->hasPermission($ability) ? true : null);
         Gate::define('access-administration', fn (User $user): bool => $user->hasPermission('administration.access'));
     }
 }

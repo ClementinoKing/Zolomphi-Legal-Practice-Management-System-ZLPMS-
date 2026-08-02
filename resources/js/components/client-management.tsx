@@ -2,6 +2,9 @@ import { Form } from '@inertiajs/react';
 import {
     ArrowDownUp,
     Building2,
+    Check,
+    ChevronLeft,
+    ChevronRight,
     Pencil,
     Plus,
     Search,
@@ -9,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import ClientController from '@/actions/App/Http/Controllers/ClientController';
+import { CustomFieldInputs } from '@/components/custom-field-inputs';
 import InputError from '@/components/input-error';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -25,6 +29,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
+import type { CustomFieldDefinition } from '@/types/custom-fields';
 
 type Client = {
     id: number;
@@ -45,13 +50,35 @@ type Client = {
     country: string | null;
     notes: string | null;
     is_active: boolean;
+    custom_fields: Record<string, boolean | number | string>;
 };
 
 type SortField = 'name' | 'client_type' | 'code';
 
 const pageSize = 10;
 
-export default function ClientManagement({ clients }: { clients: Client[] }) {
+const clientFormSteps = [
+    {
+        title: 'Client profile',
+        description: 'Identify the person or organisation you represent.',
+    },
+    {
+        title: 'Contact and address',
+        description: 'Capture contact, registration, and location details.',
+    },
+    {
+        title: 'Additional information',
+        description: 'Complete configured fields and confirm record status.',
+    },
+] as const;
+
+export default function ClientManagement({
+    clients,
+    customFields,
+}: {
+    clients: Client[];
+    customFields: CustomFieldDefinition[];
+}) {
     const [search, setSearch] = useState('');
     const [typeFilter, setTypeFilter] = useState('all');
     const [statusFilter, setStatusFilter] = useState('active');
@@ -132,7 +159,7 @@ export default function ClientManagement({ clients }: { clients: Client[] }) {
                         </p>
                     </div>
                 </div>
-                <ClientDialog />
+                <ClientDialog customFields={customFields} />
             </header>
             <div className="grid gap-3 rounded-xl bg-muted/35 p-3 md:grid-cols-[minmax(0,1fr)_11rem_9rem]">
                 <div className="relative">
@@ -293,7 +320,10 @@ export default function ClientManagement({ clients }: { clients: Client[] }) {
                                             </Badge>
                                         </td>
                                         <td className="px-4 py-3 text-right align-top">
-                                            <ClientDialog client={client} />
+                                            <ClientDialog
+                                                client={client}
+                                                customFields={customFields}
+                                            />
                                         </td>
                                     </tr>
                                 ))
@@ -372,12 +402,77 @@ function SortableHeader({
     );
 }
 
-function ClientDialog({ client }: { client?: Client }) {
+function ClientDialog({
+    client,
+    customFields,
+}: {
+    client?: Client;
+    customFields: CustomFieldDefinition[];
+}) {
     const [isOpen, setIsOpen] = useState(false);
+    const [currentStep, setCurrentStep] = useState(1);
+    const [clientType, setClientType] = useState<Client['client_type']>(
+        client?.client_type ?? 'organization',
+    );
     const isEditing = client !== undefined;
+    const applicableFields = customFields.filter((field) =>
+        field.applies_to.includes(clientType),
+    );
+
+    function handleOpenChange(open: boolean): void {
+        setIsOpen(open);
+
+        if (open) {
+            setCurrentStep(1);
+            setClientType(client?.client_type ?? 'organization');
+        }
+    }
+
+    function focusStepWithError(errors: Record<string, string>): void {
+        const errorKeys = Object.keys(errors);
+        const fieldsByStep: Record<number, string[]> = {
+            1: [
+                'type',
+                'name',
+                'full_name',
+                'organization_name',
+                'contact_person',
+                'email',
+                'phone',
+                'alternate_phone',
+            ],
+            2: [
+                'tax_number',
+                'registration_number',
+                'address_line1',
+                'address_line2',
+                'city',
+                'state',
+                'postal_code',
+                'country',
+            ],
+            3: ['notes', 'status'],
+        };
+
+        const customField = applicableFields.find((field) =>
+            errorKeys.includes(`custom_fields.${field.key}`),
+        );
+
+        if (customField !== undefined) {
+            setCurrentStep(customField.step);
+
+            return;
+        }
+
+        const step = [1, 2, 3].find((candidate) =>
+            fieldsByStep[candidate].some((field) => errorKeys.includes(field)),
+        );
+
+        setCurrentStep(step ?? 1);
+    }
 
     return (
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <Dialog open={isOpen} onOpenChange={handleOpenChange}>
             <DialogTrigger asChild>
                 {isEditing ? (
                     <Button size="sm" variant="outline">
@@ -391,7 +486,7 @@ function ClientDialog({ client }: { client?: Client }) {
                     </Button>
                 )}
             </DialogTrigger>
-            <DialogContent className="max-h-[calc(100vh-2rem)] overflow-x-hidden overflow-y-auto sm:max-w-2xl">
+            <DialogContent className="max-h-[calc(100vh-2rem)] overflow-x-hidden overflow-y-auto sm:max-w-3xl">
                 <DialogHeader>
                     <DialogTitle>
                         {isEditing ? 'Edit client' : 'Add client'}
@@ -402,6 +497,43 @@ function ClientDialog({ client }: { client?: Client }) {
                             : 'Create the primary person or organization record before opening matters.'}
                     </DialogDescription>
                 </DialogHeader>
+                <ol className="grid gap-2 border-y py-4 sm:grid-cols-3">
+                    {clientFormSteps.map((step, index) => {
+                        const stepNumber = index + 1;
+                        const isCurrent = currentStep === stepNumber;
+                        const isComplete = currentStep > stepNumber;
+
+                        return (
+                            <li
+                                key={step.title}
+                                className="flex min-w-0 items-center gap-2"
+                            >
+                                <span
+                                    className={`flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
+                                        isCurrent || isComplete
+                                            ? 'bg-primary text-primary-foreground'
+                                            : 'bg-muted text-muted-foreground'
+                                    }`}
+                                >
+                                    {isComplete ? (
+                                        <Check className="size-3.5" />
+                                    ) : (
+                                        stepNumber
+                                    )}
+                                </span>
+                                <span
+                                    className={`truncate text-sm font-medium ${
+                                        isCurrent
+                                            ? 'text-foreground'
+                                            : 'text-muted-foreground'
+                                    }`}
+                                >
+                                    {step.title}
+                                </span>
+                            </li>
+                        );
+                    })}
+                </ol>
                 <Form
                     key={client?.id ?? 'new-client'}
                     {...(client
@@ -409,158 +541,301 @@ function ClientDialog({ client }: { client?: Client }) {
                         : ClientController.store.form())}
                     resetOnSuccess
                     className="grid min-w-0 gap-5"
-                    onSuccess={() => setIsOpen(false)}
+                    onInvalidCapture={(event) => {
+                        const step = Number(
+                            (event.target as HTMLElement).dataset.clientStep,
+                        );
+
+                        if (step >= 1 && step <= clientFormSteps.length) {
+                            setCurrentStep(step);
+                        }
+                    }}
+                    onError={focusStepWithError}
+                    onSuccess={() => {
+                        setIsOpen(false);
+                        setCurrentStep(1);
+                    }}
                 >
                     {({ errors, processing }) => (
                         <>
-                            <div className="grid min-w-0 gap-4 sm:grid-cols-2">
-                                <SelectField
-                                    label="Client type"
-                                    name="type"
-                                    error={errors.type}
-                                    defaultValue={
-                                        client?.client_type ?? 'organization'
-                                    }
-                                >
-                                    <option value="organization">
-                                        Organization
-                                    </option>
-                                    <option value="individual">
-                                        Individual
-                                    </option>
-                                </SelectField>
-                                <TextField
-                                    label="Client or organization name"
-                                    name="name"
-                                    error={errors.name}
-                                    defaultValue={client?.name}
-                                    placeholder="Chisomo Holdings Limited"
-                                    required
-                                />
-                                <TextField
-                                    label="Primary contact"
-                                    name="contact_person"
-                                    error={errors.contact_person}
-                                    defaultValue={client?.contact_person ?? ''}
-                                    placeholder="Annie Chisomo"
-                                />
-                                <TextField
-                                    label="Email address"
-                                    name="email"
-                                    type="email"
-                                    error={errors.email}
-                                    defaultValue={client?.email ?? ''}
-                                    placeholder="legal@example.com"
-                                />
-                                <TextField
-                                    label="Phone number"
-                                    name="phone"
-                                    error={errors.phone}
-                                    defaultValue={client?.phone ?? ''}
-                                    placeholder="+265 999 000 000"
-                                />
-                                <TextField
-                                    label="Alternate phone"
-                                    name="alternate_phone"
-                                    error={errors.alternate_phone}
-                                    defaultValue={client?.alternate_phone ?? ''}
-                                />
-                                <div className="grid gap-2">
-                                    <Label htmlFor="client-code">
-                                        Client code
-                                    </Label>
-                                    <Input
-                                        id="client-code"
-                                        value={
-                                            client?.code ??
-                                            'Generated automatically when saved'
+                            <section
+                                hidden={currentStep !== 1}
+                                className="grid gap-5"
+                            >
+                                <StepHeading step={1} />
+                                <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+                                    <div className="grid min-w-0 gap-2">
+                                        <Label htmlFor="client-type">
+                                            Client type
+                                        </Label>
+                                        <select
+                                            id="client-type"
+                                            name="type"
+                                            value={clientType}
+                                            data-client-step="1"
+                                            onChange={(event) =>
+                                                setClientType(
+                                                    event.target
+                                                        .value as Client['client_type'],
+                                                )
+                                            }
+                                            className="h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs"
+                                        >
+                                            <option value="organization">
+                                                Organization
+                                            </option>
+                                            <option value="individual">
+                                                Individual
+                                            </option>
+                                        </select>
+                                        <InputError message={errors.type} />
+                                    </div>
+                                    <TextField
+                                        label="Client or organization name"
+                                        name="name"
+                                        error={errors.name}
+                                        defaultValue={client?.name}
+                                        placeholder="Chisomo Holdings Limited"
+                                        required
+                                        step={1}
+                                    />
+                                    <TextField
+                                        label="Primary contact"
+                                        name="contact_person"
+                                        error={errors.contact_person}
+                                        defaultValue={
+                                            client?.contact_person ?? ''
                                         }
-                                        readOnly
-                                        className="bg-muted/40 text-muted-foreground"
+                                        placeholder="Annie Chisomo"
+                                        step={1}
+                                    />
+                                    <TextField
+                                        label="Email address"
+                                        name="email"
+                                        type="email"
+                                        error={errors.email}
+                                        defaultValue={client?.email ?? ''}
+                                        placeholder="legal@example.com"
+                                        step={1}
+                                    />
+                                    <TextField
+                                        label="Phone number"
+                                        name="phone"
+                                        error={errors.phone}
+                                        defaultValue={client?.phone ?? ''}
+                                        placeholder="+265 999 000 000"
+                                        step={1}
+                                    />
+                                    <TextField
+                                        label="Alternate phone"
+                                        name="alternate_phone"
+                                        error={errors.alternate_phone}
+                                        defaultValue={
+                                            client?.alternate_phone ?? ''
+                                        }
+                                        step={1}
+                                    />
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="client-code">
+                                            Client code
+                                        </Label>
+                                        <Input
+                                            id="client-code"
+                                            value={
+                                                client?.code ??
+                                                'Generated automatically when saved'
+                                            }
+                                            readOnly
+                                            className="bg-muted/40 text-muted-foreground"
+                                        />
+                                    </div>
+                                </div>
+                                <CustomFieldInputs
+                                    fields={applicableFields.filter(
+                                        (field) => field.step === 1,
+                                    )}
+                                    values={client?.custom_fields}
+                                    errors={errors}
+                                    nativeRequired
+                                    dataStep={1}
+                                />
+                            </section>
+                            <section
+                                hidden={currentStep !== 2}
+                                className="grid gap-5"
+                            >
+                                <StepHeading step={2} />
+                                <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+                                    <TextField
+                                        label="Tax number"
+                                        name="tax_number"
+                                        error={errors.tax_number}
+                                        defaultValue={client?.tax_number ?? ''}
+                                        step={2}
+                                    />
+                                    <TextField
+                                        label="Registration number"
+                                        name="registration_number"
+                                        error={errors.registration_number}
+                                        defaultValue={
+                                            client?.registration_number ?? ''
+                                        }
+                                        step={2}
+                                    />
+                                    <TextField
+                                        label="Address line 1"
+                                        name="address_line1"
+                                        error={errors.address_line1}
+                                        defaultValue={
+                                            client?.address_line1 ?? ''
+                                        }
+                                        step={2}
+                                    />
+                                    <TextField
+                                        label="Address line 2"
+                                        name="address_line2"
+                                        error={errors.address_line2}
+                                        defaultValue={
+                                            client?.address_line2 ?? ''
+                                        }
+                                        step={2}
+                                    />
+                                    <TextField
+                                        label="City"
+                                        name="city"
+                                        error={errors.city}
+                                        defaultValue={client?.city ?? ''}
+                                        step={2}
+                                    />
+                                    <TextField
+                                        label="Country"
+                                        name="country"
+                                        error={errors.country}
+                                        defaultValue={client?.country ?? ''}
+                                        step={2}
                                     />
                                 </div>
-                            </div>
-                            <div className="grid min-w-0 gap-4 sm:grid-cols-2">
-                                <TextField
-                                    label="Tax number"
-                                    name="tax_number"
-                                    error={errors.tax_number}
-                                    defaultValue={client?.tax_number ?? ''}
+                                <CustomFieldInputs
+                                    fields={applicableFields.filter(
+                                        (field) => field.step === 2,
+                                    )}
+                                    values={client?.custom_fields}
+                                    errors={errors}
+                                    nativeRequired
+                                    dataStep={2}
                                 />
-                                <TextField
-                                    label="Registration number"
-                                    name="registration_number"
-                                    error={errors.registration_number}
-                                    defaultValue={
-                                        client?.registration_number ?? ''
-                                    }
+                            </section>
+                            <section
+                                hidden={currentStep !== 3}
+                                className="grid gap-5"
+                            >
+                                <StepHeading step={3} />
+                                <TextAreaField
+                                    label="Internal notes"
+                                    name="notes"
+                                    error={errors.notes}
+                                    defaultValue={client?.notes ?? ''}
+                                    step={3}
                                 />
-                                <TextField
-                                    label="Address line 1"
-                                    name="address_line1"
-                                    error={errors.address_line1}
-                                    defaultValue={client?.address_line1 ?? ''}
+                                <CustomFieldInputs
+                                    fields={applicableFields.filter(
+                                        (field) => field.step === 3,
+                                    )}
+                                    values={client?.custom_fields}
+                                    errors={errors}
+                                    nativeRequired
+                                    dataStep={3}
                                 />
-                                <TextField
-                                    label="Address line 2"
-                                    name="address_line2"
-                                    error={errors.address_line2}
-                                    defaultValue={client?.address_line2 ?? ''}
-                                />
-                                <TextField
-                                    label="City"
-                                    name="city"
-                                    error={errors.city}
-                                    defaultValue={client?.city ?? ''}
-                                />
-                                <TextField
-                                    label="Country"
-                                    name="country"
-                                    error={errors.country}
-                                    defaultValue={client?.country ?? ''}
-                                />
-                            </div>
-                            <TextAreaField
-                                label="Internal notes"
-                                name="notes"
-                                error={errors.notes}
-                                defaultValue={client?.notes ?? ''}
-                            />
-                            <div className="grid min-w-0 gap-2">
-                                <Label htmlFor="client-status">Status</Label>
-                                <select
-                                    id="client-status"
-                                    name="status"
-                                    defaultValue={
-                                        client?.is_active === false
-                                            ? 'inactive'
-                                            : 'active'
-                                    }
-                                    className="h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs"
-                                >
-                                    <option value="active">Active</option>
-                                    <option value="inactive">Inactive</option>
-                                </select>
-                                <InputError message={errors.status} />
-                            </div>
+                                <div className="grid min-w-0 gap-2">
+                                    <Label htmlFor="client-status">
+                                        Status
+                                    </Label>
+                                    <select
+                                        id="client-status"
+                                        name="status"
+                                        data-client-step="3"
+                                        defaultValue={
+                                            client?.is_active === false
+                                                ? 'inactive'
+                                                : 'active'
+                                        }
+                                        className="h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs"
+                                    >
+                                        <option value="active">Active</option>
+                                        <option value="inactive">
+                                            Inactive
+                                        </option>
+                                    </select>
+                                    <InputError message={errors.status} />
+                                </div>
+                            </section>
                             <DialogFooter>
-                                <DialogClose asChild>
-                                    <Button type="button" variant="outline">
-                                        Cancel
-                                    </Button>
-                                </DialogClose>
-                                <Button type="submit" disabled={processing}>
-                                    {processing && <Spinner />}
-                                    {isEditing
-                                        ? 'Save changes'
-                                        : 'Create client'}
-                                </Button>
+                                <div className="flex w-full items-center justify-between gap-3">
+                                    <DialogClose asChild>
+                                        <Button type="button" variant="outline">
+                                            Cancel
+                                        </Button>
+                                    </DialogClose>
+                                    <div className="flex items-center gap-2">
+                                        {currentStep > 1 && (
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                onClick={() =>
+                                                    setCurrentStep(
+                                                        (step) => step - 1,
+                                                    )
+                                                }
+                                            >
+                                                <ChevronLeft />
+                                                Back
+                                            </Button>
+                                        )}
+                                        {currentStep <
+                                        clientFormSteps.length ? (
+                                            <Button
+                                                type="button"
+                                                onClick={() =>
+                                                    setCurrentStep(
+                                                        (step) => step + 1,
+                                                    )
+                                                }
+                                            >
+                                                Continue
+                                                <ChevronRight />
+                                            </Button>
+                                        ) : (
+                                            <Button
+                                                type="submit"
+                                                disabled={processing}
+                                            >
+                                                {processing && <Spinner />}
+                                                {isEditing
+                                                    ? 'Save changes'
+                                                    : 'Create client'}
+                                            </Button>
+                                        )}
+                                    </div>
+                                </div>
                             </DialogFooter>
                         </>
                     )}
                 </Form>
             </DialogContent>
         </Dialog>
+    );
+}
+
+function StepHeading({ step }: { step: 1 | 2 | 3 }) {
+    const definition = clientFormSteps[step - 1];
+
+    return (
+        <div>
+            <h3 className="font-medium">{definition.title}</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+                {definition.description}
+            </p>
+        </div>
     );
 }
 
@@ -572,6 +847,7 @@ function TextField({
     defaultValue,
     placeholder,
     required = false,
+    step,
 }: {
     label: string;
     name: string;
@@ -580,6 +856,7 @@ function TextField({
     defaultValue?: string;
     placeholder?: string;
     required?: boolean;
+    step?: 1 | 2 | 3;
 }) {
     return (
         <div className="grid min-w-0 gap-2">
@@ -591,36 +868,8 @@ function TextField({
                 defaultValue={defaultValue}
                 placeholder={placeholder}
                 required={required}
+                data-client-step={step}
             />
-            <InputError message={error} />
-        </div>
-    );
-}
-
-function SelectField({
-    label,
-    name,
-    error,
-    defaultValue,
-    children,
-}: {
-    label: string;
-    name: string;
-    error?: string;
-    defaultValue: Client['client_type'];
-    children: React.ReactNode;
-}) {
-    return (
-        <div className="grid min-w-0 gap-2">
-            <Label htmlFor={`client-${name}`}>{label}</Label>
-            <select
-                id={`client-${name}`}
-                name={name}
-                defaultValue={defaultValue}
-                className="h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs"
-            >
-                {children}
-            </select>
             <InputError message={error} />
         </div>
     );
@@ -631,11 +880,13 @@ function TextAreaField({
     name,
     error,
     defaultValue,
+    step,
 }: {
     label: string;
     name: string;
     error?: string;
     defaultValue: string;
+    step?: 1 | 2 | 3;
 }) {
     return (
         <div className="grid min-w-0 gap-2">
@@ -644,6 +895,7 @@ function TextAreaField({
                 id={`client-${name}`}
                 name={name}
                 defaultValue={defaultValue}
+                data-client-step={step}
                 className="min-h-20 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs"
             />
             <InputError message={error} />

@@ -8,11 +8,13 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import MatterController from '@/actions/App/Http/Controllers/MatterController';
+import { CustomFieldInputs } from '@/components/custom-field-inputs';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
+import type { CustomFieldDefinition } from '@/types/custom-fields';
 
 type Client = {
     id: number;
@@ -46,6 +48,7 @@ type Props = {
     responsibleUsers: ResponsibleUser[];
     matterTypes: MatterType[];
     today: string;
+    customFields: CustomFieldDefinition[];
     onSuccess?: () => void;
 };
 
@@ -56,6 +59,7 @@ export default function OpenMatterForm({
     responsibleUsers,
     matterTypes,
     today,
+    customFields,
     onSuccess,
 }: Props) {
     const [step, setStep] = useState(1);
@@ -252,6 +256,12 @@ export default function OpenMatterForm({
                             error={errors.description}
                             placeholder="Summarize the instructions, dispute, or legal work to be completed."
                         />
+                        <CustomFieldInputs
+                            fields={customFields.filter(
+                                (field) => field.step === 1,
+                            )}
+                            errors={errors}
+                        />
                     </section>
 
                     <section className={step === 2 ? 'grid gap-5' : 'hidden'}>
@@ -316,6 +326,12 @@ export default function OpenMatterForm({
                             <option value="high">High</option>
                             <option value="urgent">Urgent</option>
                         </SelectField>
+                        <CustomFieldInputs
+                            fields={customFields.filter(
+                                (field) => field.step === 2,
+                            )}
+                            errors={errors}
+                        />
                     </section>
 
                     <section className={step === 3 ? 'grid gap-4' : 'hidden'}>
@@ -407,6 +423,12 @@ export default function OpenMatterForm({
                                 />
                             ))
                         )}
+                        <CustomFieldInputs
+                            fields={customFields.filter(
+                                (field) => field.step === 3,
+                            )}
+                            errors={errors}
+                        />
                     </section>
 
                     <footer className="flex items-center justify-between gap-3 border-t pt-5">

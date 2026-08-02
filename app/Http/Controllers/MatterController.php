@@ -5,9 +5,11 @@ namespace App\Http\Controllers;
 use App\Actions\Matters\GenerateMatterNumber;
 use App\Http\Requests\OpenMatterRequest;
 use App\Models\Client;
+use App\Models\GeneralSetting;
 use App\Models\Matter;
 use App\Models\MatterType;
 use App\Models\User;
+use App\Services\PracticeRecordSettings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
@@ -41,6 +43,7 @@ class MatterController extends Controller
                     'budget_amount',
                     'opened_at',
                     'deadline_at',
+                    'metadata',
                 ])
                 ->map(fn (Matter $matter): array => [
                     'id' => $matter->id,
@@ -96,6 +99,7 @@ class MatterController extends Controller
                 ->orderBy('name')
                 ->get(['id', 'name', 'default_billing_type', 'default_hourly_rate']),
             'today' => now()->toDateString(),
+            'customFields' => app(PracticeRecordSettings::class)->matterValues(GeneralSetting::query()->first())['fields'],
         ];
     }
 
@@ -121,6 +125,7 @@ class MatterController extends Controller
                 ]),
                 'matter_number' => $generateMatterNumber->handle(),
                 'opened_by_user_id' => $request->user()->id,
+                'metadata' => ['custom_fields' => $request->customFields()],
             ]);
 
             $matter->attorneys()->sync(array_values(array_unique([

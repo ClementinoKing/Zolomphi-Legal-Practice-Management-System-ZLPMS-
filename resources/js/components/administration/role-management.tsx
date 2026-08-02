@@ -1,5 +1,6 @@
 import { Form } from '@inertiajs/react';
-import { Plus, ShieldCheck } from 'lucide-react';
+import { Pencil, Plus, ShieldCheck } from 'lucide-react';
+import { useState } from 'react';
 import AdministrationController from '@/actions/App/Http/Controllers/AdministrationController';
 import InputError from '@/components/input-error';
 import { Badge } from '@/components/ui/badge';
@@ -31,15 +32,18 @@ type Role = {
     name: string;
     description: string | null;
     user_count: number;
+    permission_ids: number[];
     permissions: Pick<Permission, 'key' | 'name' | 'group'>[];
 };
 
 export default function RoleManagement({
     roles,
     permissions,
+    canManageRoles,
 }: {
     roles: Role[];
     permissions: Permission[];
+    canManageRoles: boolean;
 }) {
     return (
         <section className="grid gap-5">
@@ -50,7 +54,7 @@ export default function RoleManagement({
                         bundle access for your team.
                     </p>
                 </div>
-                <CreateRoleDialog permissions={permissions} />
+                {canManageRoles && <CreateRoleDialog permissions={permissions} />}
             </header>
             <div className="overflow-x-auto rounded-xl border border-border/70 bg-background">
                 <table className="w-full min-w-200 text-left text-sm">
@@ -65,13 +69,21 @@ export default function RoleManagement({
                             <th scope="col" className="px-4 py-3 font-medium">
                                 Assigned users
                             </th>
+                            {canManageRoles && (
+                                <th
+                                    scope="col"
+                                    className="px-4 py-3 text-right font-medium"
+                                >
+                                    Actions
+                                </th>
+                            )}
                         </tr>
                     </thead>
                     <tbody className="divide-y">
                         {roles.length === 0 ? (
                             <tr>
                                 <td
-                                    colSpan={3}
+                                    colSpan={canManageRoles ? 4 : 3}
                                     className="px-4 py-12 text-center text-muted-foreground"
                                 >
                                     <ShieldCheck className="mx-auto mb-3 size-5" />
@@ -119,6 +131,14 @@ export default function RoleManagement({
                                             {role.user_count} users
                                         </Badge>
                                     </td>
+                                    {canManageRoles && (
+                                        <td className="px-4 py-3 text-right align-top">
+                                            <EditRoleDialog
+                                                role={role}
+                                                permissions={permissions}
+                                            />
+                                        </td>
+                                    )}
                                 </tr>
                             ))
                         )}
@@ -126,6 +146,74 @@ export default function RoleManagement({
                 </table>
             </div>
         </section>
+    );
+}
+
+function EditRoleDialog({
+    role,
+    permissions,
+}: {
+    role: Role;
+    permissions: Permission[];
+}) {
+    const [open, setOpen] = useState(false);
+
+    return (
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                    <Pencil />
+                    Edit
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle>Edit role</DialogTitle>
+                    <DialogDescription>
+                        Update this role’s details and permission assignments.
+                    </DialogDescription>
+                </DialogHeader>
+                <Form
+                    {...AdministrationController.updateRole.form(role)}
+                    onSuccess={() => setOpen(false)}
+                    className="grid gap-5"
+                >
+                    {({ errors, processing }) => (
+                        <>
+                            <TextField
+                                label="Role name"
+                                name="name"
+                                defaultValue={role.name}
+                                error={errors.name}
+                                required
+                            />
+                            <TextField
+                                label="Description"
+                                name="description"
+                                defaultValue={role.description ?? ''}
+                                error={errors.description}
+                            />
+                            <PermissionCheckboxes
+                                permissions={permissions}
+                                selectedPermissionIds={role.permission_ids}
+                                error={errors.permission_ids}
+                            />
+                            <DialogFooter>
+                                <DialogClose asChild>
+                                    <Button type="button" variant="outline">
+                                        Cancel
+                                    </Button>
+                                </DialogClose>
+                                <Button type="submit" disabled={processing}>
+                                    {processing && <Spinner />}
+                                    Save changes
+                                </Button>
+                            </DialogFooter>
+                        </>
+                    )}
+                </Form>
+            </DialogContent>
+        </Dialog>
     );
 }
 
@@ -191,16 +279,23 @@ function TextField({
     name,
     error,
     required = false,
+    defaultValue,
 }: {
     label: string;
     name: string;
     error?: string;
     required?: boolean;
+    defaultValue?: string;
 }) {
     return (
         <div className="grid gap-2">
             <Label htmlFor={`role-${name}`}>{label}</Label>
-            <Input id={`role-${name}`} name={name} required={required} />
+            <Input
+                id={`role-${name}`}
+                name={name}
+                required={required}
+                defaultValue={defaultValue}
+            />
             <InputError message={error} />
         </div>
     );
@@ -209,9 +304,11 @@ function TextField({
 function PermissionCheckboxes({
     permissions,
     error,
+    selectedPermissionIds = [],
 }: {
     permissions: Permission[];
     error?: string;
+    selectedPermissionIds?: number[];
 }) {
     return (
         <div className="grid gap-2">
@@ -227,6 +324,9 @@ function PermissionCheckboxes({
                             type="checkbox"
                             name="permission_ids[]"
                             value={permission.id}
+                            defaultChecked={selectedPermissionIds.includes(
+                                permission.id,
+                            )}
                         />
                         <span>
                             <span className="block font-medium">

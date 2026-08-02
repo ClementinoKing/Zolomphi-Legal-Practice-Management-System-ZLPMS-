@@ -4,9 +4,10 @@ import { index as clients } from '@/routes/clients';
 
 type Props = {
     clients: Parameters<typeof ClientManagement>[0]['clients'];
+    customFields: Parameters<typeof ClientManagement>[0]['customFields'];
 };
 
-export default function Clients({ clients: clientRecords }: Props) {
+export default function Clients({ clients: clientRecords, customFields }: Props) {
     return (
         <>
             <Head title="Clients" />
@@ -24,7 +25,7 @@ export default function Clients({ clients: clientRecords }: Props) {
                         more legal matters.
                     </p>
                 </header>
-                <ClientManagement clients={clientRecords} />
+                <ClientManagement clients={clientRecords} customFields={customFields} />
             </div>
         </>
     );

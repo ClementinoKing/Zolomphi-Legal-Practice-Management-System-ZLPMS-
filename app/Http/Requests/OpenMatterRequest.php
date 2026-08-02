@@ -3,8 +3,10 @@
 namespace App\Http\Requests;
 
 use App\Models\Client;
+use App\Models\GeneralSetting;
 use App\Models\MatterType;
 use App\Models\User;
+use App\Services\PracticeRecordSettings;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -60,6 +62,7 @@ class OpenMatterRequest extends FormRequest
             'participants.*.contact_person' => ['nullable', 'string', 'max:255'],
             'participants.*.email' => ['nullable', 'email', 'max:255'],
             'participants.*.phone' => ['nullable', 'string', 'max:50'],
+            'custom_fields' => ['nullable', 'array'],
         ];
     }
 
@@ -90,6 +93,12 @@ class OpenMatterRequest extends FormRequest
                     $validator->errors()->add("attorney_ids.$index", 'Matter participants must hold active attorney positions.');
                 }
             }
+
+            app(PracticeRecordSettings::class)->validateValues(
+                $validator,
+                app(PracticeRecordSettings::class)->matterValues(GeneralSetting::query()->first())['fields'],
+                $this->input('custom_fields'),
+            );
         }];
     }
 
@@ -118,5 +127,21 @@ class OpenMatterRequest extends FormRequest
             fn (int|string $attorneyId): int => (int) $attorneyId,
             $attorneyIds,
         ));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function customFields(): array
+    {
+        $settings = app(PracticeRecordSettings::class);
+        $values = $this->input('custom_fields', []);
+
+        return is_array($values)
+            ? $settings->valuesForStorage(
+                $settings->matterValues(GeneralSetting::query()->first())['fields'],
+                $values,
+            )
+            : [];
     }
 }

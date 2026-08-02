@@ -3,20 +3,36 @@
 namespace App\Actions\Clients;
 
 use App\Models\Client;
-use Illuminate\Support\Str;
+use App\Models\GeneralSetting;
+use App\Services\PracticeRecordSettings;
 
 class GenerateClientNumber
 {
+    public function __construct(private readonly PracticeRecordSettings $settings) {}
+
     public function handle(): string
     {
-        $latestNumber = Client::query()
-            ->withTrashed()
-            ->orderByDesc('id')
-            ->lockForUpdate()
-            ->value('client_number');
+        $generalSettings = GeneralSetting::query()->firstOrCreate();
+        $generalSettings = GeneralSetting::query()->lockForUpdate()->findOrFail($generalSettings->id);
+        $values = $this->settings->clientValues($generalSettings);
+        $nextNumber = $values['next_number'];
+        $clientNumber = $this->format($values['number_prefix'], $nextNumber, $values['number_padding']);
 
-        $lastSequence = (int) Str::afterLast($latestNumber ?? 'CLI-000000', '-');
+        while (Client::query()->withTrashed()->where('client_number', $clientNumber)->exists()) {
+            $nextNumber++;
+            $clientNumber = $this->format($values['number_prefix'], $nextNumber, $values['number_padding']);
+        }
 
-        return sprintf('CLI-%06d', $lastSequence + 1);
+        $this->settings->updateClient($generalSettings, [
+            ...$values,
+            'next_number' => $nextNumber + 1,
+        ]);
+
+        return $clientNumber;
+    }
+
+    private function format(string $prefix, int $number, int $padding): string
+    {
+        return $prefix.'-'.str_pad((string) $number, $padding, '0', STR_PAD_LEFT);
     }
 }

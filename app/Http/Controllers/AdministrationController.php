@@ -28,6 +28,7 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -99,11 +100,12 @@ class AdministrationController extends Controller
         return to_route('administration.roles.index');
     }
 
-    public function roles(): Response
+    public function roles(Request $request): Response
     {
         return Inertia::render('administration/roles', [
             'roles' => $this->rolesPayload(),
             'permissions' => $this->permissionsPayload(),
+            'canManageRoles' => $request->user()?->hasPermission('roles.manage') ?? false,
         ]);
     }
 

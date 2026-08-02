@@ -3,7 +3,9 @@
 namespace App\Http\Middleware;
 
 use App\CurrencyConverter;
+use App\Http\Resources\TimeTrackerResource;
 use App\Models\GeneralSetting;
+use App\Models\TimeTracker;
 use Illuminate\Http\Request;
 use Illuminate\Notifications\DatabaseNotification;
 use Inertia\Middleware;
@@ -78,6 +80,22 @@ class HandleInertiaRequests extends Middleware
                             'created_at' => $notification->created_at->toIso8601String(),
                         ])->all(),
                 ];
+            },
+            'timeTracker' => function () use ($request): ?array {
+                $user = $request->user();
+
+                if ($user === null) {
+                    return null;
+                }
+
+                $tracker = TimeTracker::query()
+                    ->where('user_id', $user->id)
+                    ->with('matter.client')
+                    ->first();
+
+                return $tracker === null
+                    ? null
+                    : TimeTrackerResource::make($tracker)->resolve();
             },
         ];
     }

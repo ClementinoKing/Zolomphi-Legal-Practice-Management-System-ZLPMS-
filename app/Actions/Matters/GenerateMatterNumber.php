@@ -2,21 +2,37 @@
 
 namespace App\Actions\Matters;
 
+use App\Models\GeneralSetting;
 use App\Models\Matter;
-use Illuminate\Support\Str;
+use App\Services\PracticeRecordSettings;
 
 class GenerateMatterNumber
 {
+    public function __construct(private readonly PracticeRecordSettings $settings) {}
+
     public function handle(): string
     {
-        $latestNumber = Matter::query()
-            ->withTrashed()
-            ->orderByDesc('id')
-            ->lockForUpdate()
-            ->value('matter_number');
+        $generalSettings = GeneralSetting::query()->firstOrCreate();
+        $generalSettings = GeneralSetting::query()->lockForUpdate()->findOrFail($generalSettings->id);
+        $values = $this->settings->matterValues($generalSettings);
+        $nextNumber = $values['next_number'];
+        $matterNumber = $this->format($values['number_prefix'], $nextNumber, $values['number_padding']);
 
-        $lastSequence = (int) Str::afterLast($latestNumber ?? 'MAT-000000', '-');
+        while (Matter::query()->withTrashed()->where('matter_number', $matterNumber)->exists()) {
+            $nextNumber++;
+            $matterNumber = $this->format($values['number_prefix'], $nextNumber, $values['number_padding']);
+        }
 
-        return sprintf('MAT-%06d', $lastSequence + 1);
+        $this->settings->updateMatter($generalSettings, [
+            ...$values,
+            'next_number' => $nextNumber + 1,
+        ]);
+
+        return $matterNumber;
+    }
+
+    private function format(string $prefix, int $number, int $padding): string
+    {
+        return $prefix.'-'.str_pad((string) $number, $padding, '0', STR_PAD_LEFT);
     }
 }

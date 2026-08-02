@@ -5,9 +5,14 @@ import { index as roles } from '@/routes/administration/roles';
 type Props = {
     roles: Parameters<typeof RoleManagement>[0]['roles'];
     permissions: Parameters<typeof RoleManagement>[0]['permissions'];
+    canManageRoles: boolean;
 };
 
-export default function Roles({ roles: roleRecords, permissions }: Props) {
+export default function Roles({
+    roles: roleRecords,
+    permissions,
+    canManageRoles,
+}: Props) {
     return (
         <>
             <Head title="Roles" />
@@ -24,7 +29,11 @@ export default function Roles({ roles: roleRecords, permissions }: Props) {
                         legal practice team.
                     </p>
                 </header>
-                <RoleManagement roles={roleRecords} permissions={permissions} />
+                <RoleManagement
+                    roles={roleRecords}
+                    permissions={permissions}
+                    canManageRoles={canManageRoles}
+                />
             </div>
         </>
     );

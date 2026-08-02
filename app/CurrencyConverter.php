@@ -9,10 +9,10 @@ use Throwable;
 
 class CurrencyConverter
 {
-    public const string BaseCurrency = 'MWK';
+    public const BaseCurrency = 'MWK';
 
     /** @var array<string, string> */
-    public const array SupportedCurrencies = [
+    public const SupportedCurrencies = [
         'MWK' => 'Malawi kwacha (MWK)',
         'ZAR' => 'South African rand (ZAR)',
         'USD' => 'US dollar (USD)',

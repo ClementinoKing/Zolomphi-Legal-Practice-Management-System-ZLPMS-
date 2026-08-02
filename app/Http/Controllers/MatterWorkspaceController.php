@@ -13,6 +13,7 @@ use App\Models\BillingItem;
 use App\Models\Document;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
+use App\Models\GeneralSetting;
 use App\Models\Matter;
 use App\Models\MatterCharge;
 use App\Models\MatterEmail;
@@ -20,6 +21,7 @@ use App\Models\MatterNote;
 use App\Models\Task;
 use App\Models\TimeEntry;
 use App\Models\User;
+use App\Services\PracticeRecordSettings;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\UploadedFile;
@@ -36,6 +38,7 @@ class MatterWorkspaceController extends Controller
         private readonly EnsureClientDriveFolder $ensureClientDriveFolder,
         private readonly RecordAuditEvent $audit,
         private readonly SendPracticeAlert $alerts,
+        private readonly PracticeRecordSettings $settings,
     ) {}
 
     /** @var list<string> */
@@ -72,6 +75,7 @@ class MatterWorkspaceController extends Controller
             'expenseCategories' => ExpenseCategory::query()->where('is_active', true)->orderBy('sort_order')->orderBy('name')->get(['id', 'name', 'is_billable_by_default']),
             'billingItems' => BillingItem::query()->where('is_active', true)->orderBy('sort_order')->orderBy('name')->get(['id', 'name', 'default_amount', 'tax_rate']),
             'activity' => $activity,
+            'customFields' => $this->settings->matterValues(GeneralSetting::query()->first())['fields'],
             'summary' => [
                 'open_tasks' => $matter->tasks->whereNotIn('status', ['completed', 'cancelled'])->count(),
                 'upcoming_events' => $matter->appointments->filter(fn (Appointment $event): bool => $event->starts_at->isFuture())->count(),

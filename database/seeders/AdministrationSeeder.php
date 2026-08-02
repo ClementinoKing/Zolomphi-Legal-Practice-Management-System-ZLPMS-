@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
+use App\Support\PracticeAccessCatalog;
 use Illuminate\Database\Seeder;
 
 class AdministrationSeeder extends Seeder
@@ -14,37 +15,32 @@ class AdministrationSeeder extends Seeder
      */
     public function run(): void
     {
-        $permissions = collect([
-            ['key' => 'administration.access', 'name' => 'Access administration', 'group' => 'Administration', 'description' => 'Open the administration workspace.'],
-            ['key' => 'firm-settings.manage', 'name' => 'Manage firm settings', 'group' => 'Firm', 'description' => 'Maintain firm identity and contact settings.'],
-            ['key' => 'users.manage', 'name' => 'Manage users', 'group' => 'Access', 'description' => 'Create and update user access.'],
-            ['key' => 'departments.manage', 'name' => 'Manage departments', 'group' => 'Firm', 'description' => 'Maintain the law firm department directory.'],
-            ['key' => 'roles.manage', 'name' => 'Manage roles', 'group' => 'Access', 'description' => 'Create and update roles.'],
-            ['key' => 'permissions.manage', 'name' => 'Manage permissions', 'group' => 'Access', 'description' => 'Create and update permissions.'],
-            ['key' => 'matter-types.manage', 'name' => 'Manage matter types', 'group' => 'Practice', 'description' => 'Maintain matter-type configuration.'],
-            ['key' => 'billing-items.manage', 'name' => 'Manage billing items', 'group' => 'Billing', 'description' => 'Maintain invoice item configuration.'],
-            ['key' => 'expense-categories.manage', 'name' => 'Manage expense categories', 'group' => 'Billing', 'description' => 'Maintain expense category configuration.'],
-            ['key' => 'payment-methods.manage', 'name' => 'Manage payment methods', 'group' => 'Billing', 'description' => 'Maintain accepted payment methods.'],
-        ])->map(fn (array $attributes): Permission => Permission::query()->updateOrCreate(
-            ['key' => $attributes['key']],
-            $attributes,
-        ));
+        $this->replaceLegacyAdminRole();
 
-        $permissionIds = $permissions->pluck('id')->all();
-        $permissionKeys = $permissions->pluck('key')->all();
+        $permissions = collect(PracticeAccessCatalog::permissions())
+            ->map(fn (array $attributes, string $key): Permission => Permission::query()->updateOrCreate(
+                ['key' => $key],
+                $attributes,
+            ));
 
-        foreach (['Super Admin', 'Admin'] as $roleName) {
+        foreach (PracticeAccessCatalog::roles() as $roleName => $definition) {
+            $permissionKeys = $definition['permissions'] === '*'
+                ? array_keys(PracticeAccessCatalog::permissions())
+                : $definition['permissions'];
             $role = Role::query()->updateOrCreate(
                 ['name' => $roleName],
-                [
-                    'description' => $roleName === 'Super Admin'
-                        ? 'Full access to all firm administration controls.'
-                        : 'Administrative access to firm configuration and user management.',
-                    'permissions' => $permissionKeys,
-                ],
+                ['description' => $definition['description']],
             );
-
-            $role->assignedPermissions()->sync($permissionIds);
+            $role->assignedPermissions()->syncWithoutDetaching(
+                $permissions->only($permissionKeys)->pluck('id')->all(),
+            );
+            $role->update([
+                'permissions' => $role->assignedPermissions()
+                    ->pluck('permissions.key')
+                    ->sort()
+                    ->values()
+                    ->all(),
+            ]);
         }
 
         $initialUser = User::query()->where('email', 'paliponsemw@gmail.com')->first();
@@ -53,5 +49,30 @@ class AdministrationSeeder extends Seeder
             $superAdmin = Role::query()->where('name', 'Super Admin')->firstOrFail();
             $initialUser->roles()->syncWithoutDetaching([$superAdmin->id]);
         }
+    }
+
+    /**
+     * Replace the original generic administrator role with the clearer firm-administration template.
+     */
+    private function replaceLegacyAdminRole(): void
+    {
+        $legacyAdmin = Role::query()->where('name', 'Admin')->first();
+
+        if ($legacyAdmin === null) {
+            return;
+        }
+
+        $firmAdministrator = Role::query()->firstOrCreate(
+            ['name' => 'Firm Administrator'],
+            ['description' => PracticeAccessCatalog::roles()['Firm Administrator']['description']],
+        );
+
+        $firmAdministrator->users()->syncWithoutDetaching(
+            $legacyAdmin->users()->pluck('users.id')->all(),
+        );
+        $firmAdministrator->assignedPermissions()->syncWithoutDetaching(
+            $legacyAdmin->assignedPermissions()->pluck('permissions.id')->all(),
+        );
+        $legacyAdmin->delete();
     }
 }

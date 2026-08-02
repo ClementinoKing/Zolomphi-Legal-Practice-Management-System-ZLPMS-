@@ -29,9 +29,11 @@ export function NavMain({
     const { isCurrentUrl } = useCurrentUrl();
 
     return (
-        <SidebarGroup className="px-2 py-0">
-            <SidebarGroupLabel>{label}</SidebarGroupLabel>
-            <SidebarMenu>
+        <SidebarGroup className="px-3 py-1.5 group-data-[collapsible=icon]:px-2">
+            <SidebarGroupLabel className="h-7 px-2.5 text-[0.68rem] font-semibold tracking-[0.08em] text-sidebar-foreground/60 uppercase">
+                {label}
+            </SidebarGroupLabel>
+            <SidebarMenu className="gap-0.5">
                 {items.map((item) => (
                     <NavigationItem
                         key={item.title}
@@ -64,6 +66,7 @@ function NavigationItem({
                     asChild
                     isActive={isCurrentUrl(item.href)}
                     tooltip={{ children: item.title }}
+                    className="h-9 rounded-lg px-2.5 text-[0.875rem]"
                 >
                     <Link href={item.href} prefetch>
                         {item.icon && <item.icon />}
@@ -81,19 +84,21 @@ function NavigationItem({
                     <SidebarMenuButton
                         isActive={isCurrentUrl(item.href) || hasActiveChild}
                         tooltip={{ children: item.title }}
+                        className="h-9 rounded-lg px-2.5 text-[0.875rem]"
                     >
                         {item.icon && <item.icon />}
                         <span>{item.title}</span>
                         <ChevronDown className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-180" />
                     </SidebarMenuButton>
                 </CollapsibleTrigger>
-                <CollapsibleContent>
-                    <SidebarMenuSub>
+                <CollapsibleContent className="overflow-hidden">
+                    <SidebarMenuSub className="mt-1 ml-5 gap-0.5 border-l border-sidebar-border/70 py-0.5 pl-2">
                         {item.children?.map((child) => (
                             <SidebarMenuSubItem key={child.title}>
                                 <SidebarMenuSubButton
                                     asChild
                                     isActive={isCurrentUrl(child.href)}
+                                    className="h-8 rounded-md px-2.5 text-[0.8125rem]"
                                 >
                                     <Link href={child.href} prefetch>
                                         <span>{child.title}</span>

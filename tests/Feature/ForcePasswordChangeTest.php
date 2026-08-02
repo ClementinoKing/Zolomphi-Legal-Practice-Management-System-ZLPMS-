@@ -1,11 +1,29 @@
 <?php
 
+use App\Models\Permission;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Inertia\Testing\AssertableInertia as Assert;
 
-test('users with a temporary password must create a new password before accessing the workspace', function () {
+function passwordChangeAdministrator(): User
+{
+    $permission = Permission::query()->create([
+        'key' => 'administration.access',
+        'name' => 'Access administration',
+        'group' => 'Administration',
+    ]);
+    $role = Role::query()->create(['name' => 'Password change administrator']);
+    $role->assignedPermissions()->attach($permission);
+
     $user = User::factory()->create(['must_change_password' => true]);
+    $user->roles()->attach($role);
+
+    return $user;
+}
+
+test('users with a temporary password must create a new password before accessing the workspace', function () {
+    $user = passwordChangeAdministrator();
 
     $this->actingAs($user)
         ->get(route('dashboard'))
@@ -19,7 +37,7 @@ test('users with a temporary password must create a new password before accessin
 });
 
 test('a user can replace a temporary password and access the workspace', function () {
-    $user = User::factory()->create(['must_change_password' => true]);
+    $user = passwordChangeAdministrator();
 
     $this->actingAs($user)
         ->put(route('password.change.update'), [

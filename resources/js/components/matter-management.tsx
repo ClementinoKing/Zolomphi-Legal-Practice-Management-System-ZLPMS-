@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { useCurrency } from '@/hooks/use-currency';
+import type { CustomFieldDefinition } from '@/types/custom-fields';
 
 type Matter = {
     id: number;
@@ -37,6 +38,7 @@ type Props = {
     responsibleUsers: Parameters<typeof OpenMatterForm>[0]['responsibleUsers'];
     matterTypes: Parameters<typeof OpenMatterForm>[0]['matterTypes'];
     today: string;
+    customFields: CustomFieldDefinition[];
 };
 
 const pageSize = 10;
@@ -47,6 +49,7 @@ export default function MatterManagement({
     responsibleUsers,
     matterTypes,
     today,
+    customFields,
 }: Props) {
     const { formatMoney } = useCurrency();
     const [isOpen, setIsOpen] = useState(false);
@@ -358,6 +361,7 @@ export default function MatterManagement({
                         responsibleUsers={responsibleUsers}
                         matterTypes={matterTypes}
                         today={today}
+                        customFields={customFields}
                         onSuccess={() => setIsOpen(false)}
                     />
                 </DialogContent>
