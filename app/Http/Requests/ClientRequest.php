@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\Client;
 use App\Models\GeneralSetting;
+use App\Services\ClientDuplicateMatcher;
 use App\Services\PracticeRecordSettings;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -34,8 +35,8 @@ class ClientRequest extends FormRequest
             'organization_name' => ['nullable', 'string', 'max:255'],
             'contact_person' => ['nullable', 'string', 'max:255'],
             'email' => ['nullable', 'email', 'max:255'],
-            'phone' => ['nullable', 'string', 'max:50'],
-            'alternate_phone' => ['nullable', 'string', 'max:50'],
+            'phone' => ['nullable', 'string', 'max:50', 'regex:/^\+?[0-9\s().-]+$/'],
+            'alternate_phone' => ['nullable', 'string', 'max:50', 'regex:/^\+?[0-9\s().-]+$/'],
             'tax_number' => ['nullable', 'string', 'max:255'],
             'registration_number' => ['nullable', 'string', 'max:255'],
             'address_line1' => ['nullable', 'string', 'max:255'],
@@ -47,6 +48,9 @@ class ClientRequest extends FormRequest
             'notes' => ['nullable', 'string', 'max:2000'],
             'status' => ['required', Rule::in(['active', 'inactive'])],
             'custom_fields' => ['nullable', 'array'],
+            'duplicate_decisions' => [$this->isMethod('POST') ? 'sometimes' : 'prohibited', 'array', 'max:25'],
+            'duplicate_decisions.*.candidate_id' => ['required', 'integer', 'distinct', 'exists:clients,id'],
+            'duplicate_decisions.*.decision' => ['required', Rule::in(['duplicate', 'not_duplicate'])],
         ];
     }
 
@@ -73,6 +77,26 @@ class ClientRequest extends FormRequest
                 $this->input('custom_fields'),
                 $this->string('type')->toString(),
             );
+
+            if (! $this->isMethod('POST') || $validator->errors()->isNotEmpty()) {
+                return;
+            }
+
+            $candidates = app(ClientDuplicateMatcher::class)->findCandidates($this->all());
+            $expectedIds = collect($candidates)->pluck('id')->sort()->values()->all();
+            $submittedIds = collect($this->input('duplicate_decisions', []))
+                ->pluck('candidate_id')
+                ->map(fn (mixed $id): int => (int) $id)
+                ->sort()
+                ->values()
+                ->all();
+
+            if ($expectedIds !== $submittedIds) {
+                $validator->errors()->add(
+                    'duplicate_decisions',
+                    'Review each possible matching client before saving. Please check for matches again.',
+                );
+            }
         }];
     }
 

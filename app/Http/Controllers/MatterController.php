@@ -86,21 +86,19 @@ class MatterController extends Controller
     private function openingData(User $user): array
     {
         return [
-            'clients' => Client::query()
-                ->where('status', 'active')
-                ->when(
-                    ! $user->hasPermission('matters.view.all'),
-                    fn (Builder $query): Builder => $query->whereHas('matters', fn (Builder $matters): Builder => $matters->whereIn('id', Matter::query()->visibleTo($user)->select('id'))),
-                )
-                ->get(['id', 'client_number', 'full_name', 'organization_name', 'type'])
-                ->map(fn (Client $client): array => [
-                    'id' => $client->id,
-                    'name' => $client->full_name ?? $client->organization_name ?? 'Unnamed client',
-                    'client_number' => $client->client_number,
-                    'type' => $client->type,
-                ])
-                ->sortBy('name')
-                ->values(),
+            'clients' => $user->hasPermission('clients.view')
+                ? Client::query()
+                    ->where('status', 'active')
+                    ->get(['id', 'client_number', 'full_name', 'organization_name', 'type'])
+                    ->map(fn (Client $client): array => [
+                        'id' => $client->id,
+                        'name' => $client->full_name ?? $client->organization_name ?? 'Unnamed client',
+                        'client_number' => $client->client_number,
+                        'type' => $client->type,
+                    ])
+                    ->sortBy('name')
+                    ->values()
+                : [],
             'responsibleUsers' => User::attorneys()
                 ->when(
                     ! $user->hasPermission('matters.participants.manage'),
@@ -123,6 +121,7 @@ class MatterController extends Controller
         GenerateMatterNumber $generateMatterNumber,
     ): RedirectResponse {
         DB::transaction(function () use ($request, $generateMatterNumber): void {
+            $matterType = MatterType::query()->findOrFail($request->integer('matter_type_id'));
             $matter = Matter::create([
                 ...Arr::only($request->validated(), [
                     'client_id',
@@ -138,7 +137,7 @@ class MatterController extends Controller
                     'opened_at',
                     'deadline_at',
                 ]),
-                'matter_number' => $generateMatterNumber->handle(),
+                'matter_number' => $generateMatterNumber->handle($matterType),
                 'opened_by_user_id' => $request->user()->id,
                 'metadata' => ['custom_fields' => $request->customFields()],
             ]);

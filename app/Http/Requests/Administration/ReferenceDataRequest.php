@@ -4,6 +4,7 @@ namespace App\Http\Requests\Administration;
 
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class ReferenceDataRequest extends FormRequest
@@ -37,6 +38,7 @@ class ReferenceDataRequest extends FormRequest
         return match ($resource) {
             'matter-types' => [
                 ...$rules,
+                'short_code' => ['required', 'string', 'max:10', 'regex:/^[A-Z0-9]{2,10}$/', Rule::unique('matter_types', 'short_code')->ignore($record)],
                 'default_billing_type' => ['required', Rule::in(['hourly', 'fixed_fee', 'contingency'])],
                 'default_hourly_rate' => ['nullable', 'numeric', 'min:0'],
             ],
@@ -52,6 +54,17 @@ class ReferenceDataRequest extends FormRequest
             ],
             default => $rules,
         };
+    }
+
+    protected function prepareForValidation(): void
+    {
+        if ($this->route('resource') !== 'matter-types' || ! $this->has('short_code')) {
+            return;
+        }
+
+        $this->merge([
+            'short_code' => Str::upper($this->string('short_code')->trim()->toString()),
+        ]);
     }
 
     private function tableFor(string $resource): string

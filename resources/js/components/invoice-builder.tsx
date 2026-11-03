@@ -29,6 +29,9 @@ type Invoice = {
     currency: string;
     issued_at: string;
     due_at: string;
+    our_reference: string | null;
+    your_reference: string | null;
+    tax_breakdown: TaxLine[] | null;
     notes: string | null;
     terms: string | null;
     subtotal: string;
@@ -36,6 +39,8 @@ type Invoice = {
     total_amount: string;
     items: InvoiceLine[];
 };
+
+type TaxLine = { label: string; rate: string; amount: string };
 
 type Source = {
     id: number;
@@ -56,6 +61,8 @@ type FormData = {
     currency: string;
     issued_at: string;
     due_at: string;
+    our_reference: string;
+    your_reference: string;
     notes: string;
     terms: string;
     items: InvoiceLine[];
@@ -80,6 +87,7 @@ type Props = {
         tax_rate: string;
         terms: string;
         tax_label: string;
+        taxes: Array<{ label: string; rate: string }>;
     };
 };
 
@@ -97,6 +105,9 @@ export default function InvoiceBuilder(props: Props) {
         [defaults, invoice, selectedClientId, selectedMatterId],
     );
     const form = useForm<FormData>(formData);
+    const invoiceTaxes =
+        invoice === null ? defaults.taxes : invoice.tax_breakdown;
+    const usesInvoiceTax = invoiceTaxes !== null;
     const { clearErrors, setData } = form;
 
     useEffect(() => {
@@ -105,8 +116,8 @@ export default function InvoiceBuilder(props: Props) {
     }, [clearErrors, formData, setData]);
 
     const totals = useMemo(
-        () => calculateTotals(form.data.items),
-        [form.data.items],
+        () => calculateTotals(form.data.items, invoiceTaxes),
+        [form.data.items, invoiceTaxes],
     );
     const hasSelectedClient = form.data.client_id !== null;
 
@@ -164,7 +175,7 @@ export default function InvoiceBuilder(props: Props) {
                 description: '',
                 quantity: '1',
                 unit_price: '0',
-                tax_rate: defaults.tax_rate,
+                tax_rate: usesInvoiceTax ? '0' : defaults.tax_rate,
             },
         ]);
     }
@@ -321,6 +332,24 @@ export default function InvoiceBuilder(props: Props) {
                         }
                     />
                 </Field>
+                <Field label="Our Ref" error={form.errors.our_reference}>
+                    <Input
+                        value={form.data.our_reference}
+                        onChange={(event) =>
+                            form.setData('our_reference', event.target.value)
+                        }
+                        placeholder="Firm reference"
+                    />
+                </Field>
+                <Field label="Your Ref" error={form.errors.your_reference}>
+                    <Input
+                        value={form.data.your_reference}
+                        onChange={(event) =>
+                            form.setData('your_reference', event.target.value)
+                        }
+                        placeholder="Client reference"
+                    />
+                </Field>
             </section>
 
             <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
@@ -407,9 +436,11 @@ export default function InvoiceBuilder(props: Props) {
                                             <th className="px-3 py-3 font-medium">
                                                 Unit price
                                             </th>
-                                            <th className="px-3 py-3 font-medium">
-                                                {defaults.tax_label}
-                                            </th>
+                                            {!usesInvoiceTax && (
+                                                <th className="px-3 py-3 font-medium">
+                                                    Line tax (%)
+                                                </th>
+                                            )}
                                             <th className="px-3 py-3 text-right font-medium">
                                                 Amount
                                             </th>
@@ -426,8 +457,10 @@ export default function InvoiceBuilder(props: Props) {
                                                 const isManual =
                                                     line.source_type ===
                                                     'manual';
-                                                const lineTotal =
-                                                    lineAmount(line);
+                                                const lineTotal = lineAmount(
+                                                    line,
+                                                    usesInvoiceTax,
+                                                );
 
                                                 return (
                                                     <tr
@@ -475,37 +508,40 @@ export default function InvoiceBuilder(props: Props) {
                                                                 />
                                                             </div>
                                                         </td>
-                                                        <td className="w-24 px-3 py-3 align-top">
-                                                            <Input
-                                                                type="number"
-                                                                min="0.01"
-                                                                step="0.01"
-                                                                value={
-                                                                    line.quantity
-                                                                }
-                                                                disabled={
-                                                                    !isManual
-                                                                }
-                                                                onChange={(
-                                                                    event,
-                                                                ) =>
-                                                                    updateLine(
-                                                                        lineIndex,
-                                                                        'quantity',
-                                                                        event
-                                                                            .target
-                                                                            .value,
-                                                                    )
-                                                                }
-                                                            />
-                                                            <LineError
-                                                                error={
-                                                                    form.errors[
-                                                                        `items.${lineIndex}.quantity`
-                                                                    ]
-                                                                }
-                                                            />
-                                                        </td>
+                                                        {!usesInvoiceTax && (
+                                                            <td className="w-24 px-3 py-3 align-top">
+                                                                <Input
+                                                                    type="number"
+                                                                    min="0.01"
+                                                                    step="0.01"
+                                                                    value={
+                                                                        line.quantity
+                                                                    }
+                                                                    disabled={
+                                                                        !isManual
+                                                                    }
+                                                                    onChange={(
+                                                                        event,
+                                                                    ) =>
+                                                                        updateLine(
+                                                                            lineIndex,
+                                                                            'quantity',
+                                                                            event
+                                                                                .target
+                                                                                .value,
+                                                                        )
+                                                                    }
+                                                                />
+                                                                <LineError
+                                                                    error={
+                                                                        form
+                                                                            .errors[
+                                                                            `items.${lineIndex}.quantity`
+                                                                        ]
+                                                                    }
+                                                                />
+                                                            </td>
+                                                        )}
                                                         <td className="w-32 px-3 py-3 align-top">
                                                             <Input
                                                                 type="number"
@@ -637,10 +673,13 @@ export default function InvoiceBuilder(props: Props) {
                             label="Subtotal"
                             value={money(totals.subtotal, form.data.currency)}
                         />
-                        <SummaryRow
-                            label={defaults.tax_label}
-                            value={money(totals.tax, form.data.currency)}
-                        />
+                        {totals.taxes.map((tax) => (
+                            <SummaryRow
+                                key={`${tax.label}:${tax.rate}`}
+                                label={`${tax.label} (${tax.rate}%)`}
+                                value={money(tax.amount, form.data.currency)}
+                            />
+                        ))}
                         <SummaryRow
                             label="Balance due"
                             value={money(totals.total, form.data.currency)}
@@ -819,37 +858,72 @@ function initialData(
         currency: invoice?.currency ?? defaults.currency,
         issued_at: invoice?.issued_at ?? defaults.issued_at,
         due_at: invoice?.due_at ?? defaults.due_at,
+        our_reference: invoice?.our_reference ?? '',
+        your_reference: invoice?.your_reference ?? '',
         notes: invoice?.notes ?? '',
         terms: invoice?.terms ?? defaults.terms,
         items: invoice?.items ?? [],
     };
 }
 
-function calculateTotals(lines: InvoiceLine[]): {
+function calculateTotals(
+    lines: InvoiceLine[],
+    invoiceTaxes: Array<{ label: string; rate: string }> | null,
+): {
     subtotal: number;
     tax: number;
     total: number;
+    taxes: Array<{ label: string; rate: string; amount: number }>;
 } {
-    return lines.reduce(
-        (totals, line) => {
-            const subtotal =
-                Number(line.quantity || 0) * Number(line.unit_price || 0);
-            const tax = subtotal * (Number(line.tax_rate || 0) / 100);
-
-            return {
-                subtotal: totals.subtotal + subtotal,
-                tax: totals.tax + tax,
-                total: totals.total + subtotal + tax,
-            };
-        },
-        { subtotal: 0, tax: 0, total: 0 },
+    const subtotal = lines.reduce(
+        (total, line) =>
+            total + Number(line.quantity || 0) * Number(line.unit_price || 0),
+        0,
     );
+    const taxes =
+        invoiceTaxes === null
+            ? lines.reduce<
+                  Array<{ label: string; rate: string; amount: number }>
+              >((rows, line) => {
+                  const rate = Number(line.tax_rate || 0);
+
+                  if (rate === 0) {
+                      return rows;
+                  }
+
+                  const current = rows.find((row) => Number(row.rate) === rate);
+                  const amount =
+                      (Number(line.quantity || 0) *
+                          Number(line.unit_price || 0) *
+                          rate) /
+                      100;
+
+                  if (current) {
+                      current.amount += amount;
+                  } else {
+                      rows.push({ label: 'Tax', rate: String(rate), amount });
+                  }
+
+                  return rows;
+              }, [])
+            : invoiceTaxes.map((tax) => ({
+                  label: tax.label,
+                  rate: tax.rate,
+                  amount:
+                      Math.round(((subtotal * Number(tax.rate)) / 100) * 100) /
+                      100,
+              }));
+    const tax = taxes.reduce((total, row) => total + row.amount, 0);
+
+    return { subtotal, tax, total: subtotal + tax, taxes };
 }
 
-function lineAmount(line: InvoiceLine): number {
+function lineAmount(line: InvoiceLine, usesInvoiceTax = false): number {
     const subtotal = Number(line.quantity || 0) * Number(line.unit_price || 0);
 
-    return subtotal + subtotal * (Number(line.tax_rate || 0) / 100);
+    return usesInvoiceTax
+        ? subtotal
+        : subtotal + subtotal * (Number(line.tax_rate || 0) / 100);
 }
 
 function money(value: string | number, currency: string): string {

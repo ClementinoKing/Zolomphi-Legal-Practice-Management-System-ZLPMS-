@@ -23,6 +23,7 @@ type ReferenceDataItem = {
     id: number;
     name: string;
     code: string;
+    short_code?: string | null;
     description: string | null;
     is_active: boolean;
     sort_order: number;
@@ -76,7 +77,9 @@ export default function ReferenceDataManagement({
                                 {singularTitle}
                             </th>
                             <th scope="col" className="px-4 py-3 font-medium">
-                                Code
+                                {resource === 'matter-types'
+                                    ? 'Short code'
+                                    : 'Code'}
                             </th>
                             <th scope="col" className="px-4 py-3 font-medium">
                                 Defaults
@@ -117,7 +120,9 @@ export default function ReferenceDataManagement({
                                         )}
                                     </td>
                                     <td className="px-4 py-3 align-top font-mono text-muted-foreground">
-                                        {item.code}
+                                        {resource === 'matter-types'
+                                            ? item.short_code
+                                            : item.code}
                                     </td>
                                     <td className="px-4 py-3 align-top text-muted-foreground">
                                         {referenceDataDefaults(
@@ -203,6 +208,13 @@ function ReferenceDataDialog({
                             </div>
                             {resource === 'matter-types' && (
                                 <div className="grid gap-4 sm:grid-cols-2">
+                                    <Field
+                                        resource={resource}
+                                        label="Short code"
+                                        name="short_code"
+                                        error={errors.short_code}
+                                        required
+                                    />
                                     <SelectField
                                         resource={resource}
                                         label="Billing type"

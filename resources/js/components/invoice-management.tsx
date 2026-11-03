@@ -1,11 +1,11 @@
 import { Link } from '@inertiajs/react';
-import { Plus, Search } from 'lucide-react';
+import { Plus, Printer, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useCurrency } from '@/hooks/use-currency';
-import { create, edit } from '@/routes/invoices';
+import { create, edit, print as printInvoice } from '@/routes/invoices';
 import { index as payments } from '@/routes/payments';
 
 type Invoice = {
@@ -190,27 +190,45 @@ export default function InvoiceManagement({
                                         </Badge>
                                     </td>
                                     <td className="px-4 py-3 text-right align-top">
-                                        {invoice.status === 'draft' ? (
+                                        <div className="flex flex-wrap justify-end gap-2">
                                             <Button
                                                 size="sm"
                                                 variant="outline"
                                                 asChild
                                             >
-                                                <Link href={edit(invoice.id)}>
-                                                    Edit draft
+                                                <Link
+                                                    href={printInvoice(
+                                                        invoice.id,
+                                                    )}
+                                                >
+                                                    <Printer /> Print
                                                 </Link>
                                             </Button>
-                                        ) : invoice.balance_due !== '0.00' ? (
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                asChild
-                                            >
-                                                <Link href={payments()}>
-                                                    Record payment
-                                                </Link>
-                                            </Button>
-                                        ) : null}
+                                            {invoice.status === 'draft' ? (
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    asChild
+                                                >
+                                                    <Link
+                                                        href={edit(invoice.id)}
+                                                    >
+                                                        Edit draft
+                                                    </Link>
+                                                </Button>
+                                            ) : invoice.balance_due !==
+                                              '0.00' ? (
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    asChild
+                                                >
+                                                    <Link href={payments()}>
+                                                        Record payment
+                                                    </Link>
+                                                </Button>
+                                            ) : null}
+                                        </div>
                                     </td>
                                 </tr>
                             ))

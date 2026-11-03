@@ -204,10 +204,16 @@ test('client and matter generators use configured numbers and skip existing reco
     $this->actingAs($administrator)->put(route('clients.settings.update'), clientSettingsPayload());
     $this->put(route('matters.settings.update'), matterSettingsPayload());
     Client::factory()->create(['client_number' => 'CLT-0001']);
-    Matter::factory()->create(['matter_number' => 'MATX-0001']);
+    $matterType = MatterType::query()->create([
+        'name' => 'Commercial litigation',
+        'code' => 'commercial-litigation',
+        'short_code' => 'LIT',
+        'default_billing_type' => 'hourly',
+    ]);
+    Matter::factory()->create(['matter_number' => 'MATX-LIT-0001']);
 
     expect(DB::transaction(fn (): string => app(GenerateClientNumber::class)->handle()))
         ->toBe('CLT-0002');
-    expect(DB::transaction(fn (): string => app(GenerateMatterNumber::class)->handle()))
-        ->toBe('MATX-0002');
+    expect(DB::transaction(fn (): string => app(GenerateMatterNumber::class)->handle($matterType)))
+        ->toBe('MATX-LIT-0002');
 });

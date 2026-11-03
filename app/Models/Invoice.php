@@ -16,6 +16,9 @@ use Illuminate\Support\Carbon;
  * @property string $invoice_number
  * @property int $client_id
  * @property int|null $matter_id
+ * @property string|null $our_reference
+ * @property string|null $your_reference
+ * @property array<int, array{label: string, rate: string, amount: string}>|null $tax_breakdown
  * @property int|null $created_by_user_id
  * @property string $status
  * @property string $currency
@@ -37,7 +40,7 @@ use Illuminate\Support\Carbon;
  * @property-read Matter|null $matter
  * @property-read User|null $creator
  */
-#[Fillable(['invoice_number', 'client_id', 'matter_id', 'created_by_user_id', 'status', 'currency', 'issued_at', 'due_at', 'subtotal', 'tax_amount', 'discount_amount', 'total_amount', 'paid_amount', 'balance_due', 'notes', 'terms', 'paid_at'])]
+#[Fillable(['invoice_number', 'client_id', 'matter_id', 'created_by_user_id', 'status', 'currency', 'issued_at', 'due_at', 'subtotal', 'tax_amount', 'discount_amount', 'total_amount', 'paid_amount', 'balance_due', 'notes', 'terms', 'paid_at', 'our_reference', 'your_reference', 'tax_breakdown'])]
 class Invoice extends Model
 {
     /** @use HasFactory<InvoiceFactory> */
@@ -107,6 +110,7 @@ class Invoice extends Model
             'total_amount' => 'decimal:2',
             'paid_amount' => 'decimal:2',
             'balance_due' => 'decimal:2',
+            'tax_breakdown' => 'array',
         ];
     }
 }

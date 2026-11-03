@@ -190,6 +190,14 @@ function itemKindFromDocument(document: ClientDocument): DriveItemKind {
 }
 
 function formatFileSize(size: number): string {
+    if (size >= 1024 * 1024 * 1024 * 1024) {
+        return `${(size / (1024 * 1024 * 1024 * 1024)).toFixed(1)} TB`;
+    }
+
+    if (size >= 1024 * 1024 * 1024) {
+        return `${(size / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+    }
+
     if (size < 1024 * 1024) {
         return `${Math.max(1, Math.round(size / 1024))} KB`;
     }
@@ -206,9 +214,14 @@ function companyDriveFolderId(itemId: string | null): number | null {
 export default function FilesIndex({
     clientFolders,
     organizationFolders,
+    storage,
 }: {
     clientFolders: ClientFolder[];
     organizationFolders: ClientFolder[];
+    storage: {
+        usedBytes: number;
+        quotaBytes: number;
+    };
 }) {
     const [items, setItems] = useState<DriveItem[]>(() =>
         initialDriveItems(clientFolders, organizationFolders),
@@ -270,15 +283,10 @@ export default function FilesIndex({
 
     const folders = visibleItems.filter((item) => item.kind === 'folder');
     const fileItems = visibleItems.filter((item) => item.kind !== 'folder');
-    const clientDocumentCount =
-        clientFolders.reduce(
-            (total, client) => total + client.documentCount,
-            0,
-        ) +
-        organizationFolders.reduce(
-            (total, organization) => total + organization.documentCount,
-            0,
-        );
+    const storageUsagePercent = Math.min(
+        100,
+        (storage.usedBytes / storage.quotaBytes) * 100,
+    );
     const libraryTitle: Record<DriveLibrary, string> = {
         workspace: 'Company drive',
         'client-files': 'Clients',
@@ -580,15 +588,17 @@ export default function FilesIndex({
                                     Storage
                                 </div>
                                 <p className="mt-3 text-sm text-muted-foreground">
-                                    {clientDocumentCount} client file
-                                    {clientDocumentCount === 1 ? '' : 's'} in
-                                    the workspace
+                                    {formatFileSize(storage.usedBytes)} of{' '}
+                                    {formatFileSize(storage.quotaBytes)} used
                                 </p>
                                 <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-primary/10">
-                                    <div className="h-full w-1/3 rounded-full bg-[#EA702D]" />
+                                    <div
+                                        className="h-full rounded-full bg-[#EA702D] transition-[width]"
+                                        style={{ width: `${storageUsagePercent}%` }}
+                                    />
                                 </div>
                                 <p className="mt-2 text-xs text-muted-foreground">
-                                    Cloud storage connection pending
+                                    {storageUsagePercent.toFixed(1)}% of firm storage used
                                 </p>
                             </div>
                         </div>

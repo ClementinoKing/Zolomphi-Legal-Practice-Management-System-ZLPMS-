@@ -17,6 +17,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CompanyFilesController extends Controller
 {
+    private const StorageQuotaBytes = 1024 ** 4;
+
     public function index(): Response
     {
         $user = auth()->user();
@@ -65,6 +67,10 @@ class CompanyFilesController extends Controller
                 ->map($folderPayload)
                 ->values()
                 ->all(),
+            'storage' => [
+                'usedBytes' => (int) Document::query()->sum('size_bytes'),
+                'quotaBytes' => self::StorageQuotaBytes,
+            ],
         ]);
     }
 

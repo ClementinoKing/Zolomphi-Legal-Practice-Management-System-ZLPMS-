@@ -45,7 +45,7 @@ test('staged plans create equal monthly installments and allocate payments', fun
     $user = paymentAdmin();
     $invoice = paymentInvoice($user);
     $method = PaymentMethod::query()->create(['name' => 'Cash', 'code' => 'cash', 'is_active' => true]);
-    $this->actingAs($user)->post(route('payments.plans.store'), ['invoice_id' => $invoice->id, 'installment_count' => 3, 'first_due_at' => '2026-08-15'])->assertRedirect();
+    $this->actingAs($user)->post(route('payments.plans.store'), ['invoice_id' => $invoice->id, 'installment_count' => 3, 'first_due_at' => today()->addDays(7)->toDateString()])->assertRedirect();
     $plan = $invoice->refresh()->paymentPlan()->with('installments')->firstOrFail();
     expect($plan->installments->pluck('amount')->all())->toBe(['333.33', '333.33', '333.34']);
     expect($invoice->status)->toBe('issued');

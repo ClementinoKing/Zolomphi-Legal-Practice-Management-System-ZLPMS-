@@ -113,6 +113,8 @@ Route::middleware(['auth', 'verified'])
         Route::put('settings', [InvoiceSettingsController::class, 'update'])->middleware('can:invoices.configure')->name('settings.update');
         Route::get('create', [InvoiceController::class, 'create'])->middleware('can:create,App\Models\Invoice')->name('create');
         Route::post('/', [InvoiceController::class, 'store'])->middleware('can:create,App\Models\Invoice')->name('store');
+        Route::get('template-logo/{document}', [InvoiceController::class, 'templateLogo'])->middleware('can:viewAny,App\Models\Invoice')->name('template-logo');
+        Route::get('{invoice}/print', [InvoiceController::class, 'printable'])->middleware('can:view,invoice')->name('print');
         Route::get('{invoice}/edit', [InvoiceController::class, 'edit'])->middleware('can:update,invoice')->name('edit');
         Route::patch('{invoice}', [InvoiceController::class, 'update'])->middleware('can:update,invoice')->name('update');
     });
@@ -151,6 +153,7 @@ Route::middleware(['auth', 'verified'])
     ->name('clients.')
     ->group(function (): void {
         Route::get('/', [ClientController::class, 'index'])->middleware('can:viewAny,App\Models\Client')->name('index');
+        Route::post('duplicate-candidates', [ClientController::class, 'duplicateCandidates'])->middleware('can:create,App\Models\Client')->name('duplicate-candidates');
         Route::get('settings', [ClientSettingsController::class, 'edit'])->middleware('can:clients.configure')->name('settings.edit');
         Route::put('settings', [ClientSettingsController::class, 'update'])->middleware('can:clients.configure')->name('settings.update');
         Route::post('/', [ClientController::class, 'store'])->middleware('can:create,App\Models\Client')->name('store');

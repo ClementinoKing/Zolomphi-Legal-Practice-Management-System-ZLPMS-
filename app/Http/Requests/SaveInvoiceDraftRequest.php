@@ -38,6 +38,8 @@ class SaveInvoiceDraftRequest extends FormRequest
             'currency' => ['required', 'string', Rule::in(array_keys(CurrencyConverter::SupportedCurrencies))],
             'issued_at' => ['required', 'date'],
             'due_at' => ['required', 'date', 'after_or_equal:issued_at'],
+            'our_reference' => ['nullable', 'string', 'max:255'],
+            'your_reference' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string', 'max:10000'],
             'terms' => ['nullable', 'string', 'max:10000'],
             'items' => ['required', 'array', 'min:1', 'max:100'],

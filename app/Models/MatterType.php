@@ -10,8 +10,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 /**
  * @property int $id
  * @property string $name
+ * @property string|null $short_code
  */
-#[Fillable(['name', 'code', 'description', 'default_billing_type', 'default_hourly_rate', 'is_active', 'sort_order'])]
+#[Fillable(['name', 'code', 'short_code', 'description', 'default_billing_type', 'default_hourly_rate', 'is_active', 'sort_order'])]
 class MatterType extends Model
 {
     use SoftDeletes;

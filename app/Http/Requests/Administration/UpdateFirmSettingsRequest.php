@@ -21,6 +21,7 @@ class UpdateFirmSettingsRequest extends FormRequest
     {
         return [
             'firm_name' => ['required', 'string', 'max:255'],
+            'invoice_contact_name' => ['nullable', 'string', 'max:255'],
             'email' => ['nullable', 'email', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
             'website' => ['nullable', 'url', 'max:255'],

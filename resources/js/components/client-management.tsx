@@ -1,4 +1,4 @@
-import { Form } from '@inertiajs/react';
+import { Form, useHttp } from '@inertiajs/react';
 import {
     ArrowDownUp,
     Building2,
@@ -52,7 +52,34 @@ type Client = {
     notes: string | null;
     is_active: boolean;
     custom_fields: Record<string, boolean | number | string>;
+    linked_clients: Array<{
+        id: number;
+        name: string;
+        code: string;
+        type: string;
+        decision: 'duplicate' | 'shared_contact';
+    }>;
 };
+
+type DuplicateCandidate = {
+    id: number;
+    client_number: string;
+    type: Client['client_type'];
+    name: string;
+    matched_fields: Array<'name' | 'email' | 'phone'>;
+};
+
+type DuplicateDecision = 'duplicate' | 'not_duplicate';
+
+type DuplicateCheckData = {
+    type: Client['client_type'];
+    name: string;
+    email: string;
+    phone: string;
+    alternate_phone: string;
+};
+
+type DuplicateCheckResponse = { candidates: DuplicateCandidate[] };
 
 type SortField = 'name' | 'client_type' | 'code';
 
@@ -301,6 +328,49 @@ export default function ClientManagement({
                                                 {client.phone && (
                                                     <span>{client.phone}</span>
                                                 )}
+                                                {client.linked_clients.length >
+                                                    0 && (
+                                                    <span
+                                                        title={client.linked_clients
+                                                            .map(
+                                                                (
+                                                                    linkedClient,
+                                                                ) =>
+                                                                    linkedClient.decision ===
+                                                                    'duplicate'
+                                                                        ? `${linkedClient.name} (confirmed duplicate)`
+                                                                        : `${linkedClient.name} (shared contact)`,
+                                                            )
+                                                            .join(', ')}
+                                                        className="mt-1 inline-flex w-fit rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
+                                                    >
+                                                        Linked to{' '}
+                                                        {
+                                                            client
+                                                                .linked_clients
+                                                                .length
+                                                        }{' '}
+                                                        client
+                                                        {client.linked_clients
+                                                            .length === 1
+                                                            ? ''
+                                                            : 's'}
+                                                        <span className="sr-only">
+                                                            {': '}
+                                                            {client.linked_clients
+                                                                .map(
+                                                                    (
+                                                                        linkedClient,
+                                                                    ) =>
+                                                                        linkedClient.decision ===
+                                                                        'duplicate'
+                                                                            ? `${linkedClient.name} (confirmed duplicate)`
+                                                                            : `${linkedClient.name} (shared contact)`,
+                                                                )
+                                                                .join(', ')}
+                                                        </span>
+                                                    </span>
+                                                )}
                                                 {!client.email &&
                                                     !client.phone && (
                                                         <span>—</span>
@@ -415,10 +485,28 @@ function ClientDialog({
     const [clientType, setClientType] = useState<Client['client_type']>(
         client?.client_type ?? 'organization',
     );
+    const [duplicateCandidates, setDuplicateCandidates] = useState<
+        DuplicateCandidate[] | null
+    >(null);
+    const [duplicateDecisions, setDuplicateDecisions] = useState<
+        Record<number, DuplicateDecision>
+    >({});
+    const [duplicateCheckError, setDuplicateCheckError] = useState('');
+    const duplicateCheck = useHttp<DuplicateCheckData, DuplicateCheckResponse>({
+        type: client?.client_type ?? 'organization',
+        name: '',
+        email: '',
+        phone: '',
+        alternate_phone: '',
+    });
     const isEditing = client !== undefined;
     const applicableFields = customFields.filter((field) =>
         field.applies_to.includes(clientType),
     );
+    const allDuplicateCandidatesReviewed =
+        duplicateCandidates?.every(
+            (candidate) => duplicateDecisions[candidate.id] !== undefined,
+        ) ?? false;
 
     function handleOpenChange(open: boolean): void {
         setIsOpen(open);
@@ -426,6 +514,13 @@ function ClientDialog({
         if (open) {
             setCurrentStep(1);
             setClientType(client?.client_type ?? 'organization');
+            setDuplicateCandidates(null);
+            setDuplicateDecisions({});
+            setDuplicateCheckError('');
+        } else {
+            setDuplicateCandidates(null);
+            setDuplicateDecisions({});
+            setDuplicateCheckError('');
         }
     }
 
@@ -441,6 +536,7 @@ function ClientDialog({
                 'email',
                 'phone',
                 'alternate_phone',
+                'duplicate_decisions',
             ],
             2: [
                 'tax_number',
@@ -556,10 +652,31 @@ function ClientDialog({
                             setCurrentStep(step);
                         }
                     }}
-                    onError={focusStepWithError}
+                    onError={(errors) => {
+                        focusStepWithError(errors);
+
+                        if (errors.duplicate_decisions !== undefined) {
+                            setDuplicateCandidates(null);
+                            setDuplicateDecisions({});
+                            setDuplicateCheckError(errors.duplicate_decisions);
+                        }
+                    }}
+                    onInputCapture={() => {
+                        if (
+                            !isEditing &&
+                            currentStep === 1 &&
+                            duplicateCandidates !== null
+                        ) {
+                            setDuplicateCandidates(null);
+                            setDuplicateDecisions({});
+                            setDuplicateCheckError('');
+                        }
+                    }}
                     onSuccess={() => {
                         setIsOpen(false);
                         setCurrentStep(1);
+                        setDuplicateCandidates(null);
+                        setDuplicateDecisions({});
                     }}
                 >
                     {({ errors, processing }) => (
@@ -658,6 +775,147 @@ function ClientDialog({
                                         />
                                     </div>
                                 </div>
+                                {!isEditing &&
+                                    duplicateCandidates !== null &&
+                                    duplicateCandidates.length > 0 && (
+                                        <div
+                                            className="grid gap-3 rounded-lg border border-amber-500/40 bg-amber-500/5 p-4"
+                                            role="group"
+                                            aria-labelledby="client-duplicate-review-heading"
+                                        >
+                                            <div className="grid gap-1">
+                                                <h4
+                                                    id="client-duplicate-review-heading"
+                                                    className="font-medium"
+                                                >
+                                                    Possible matching clients
+                                                </h4>
+                                                <p className="text-sm text-muted-foreground">
+                                                    Review every match. The new
+                                                    client remains a separate
+                                                    record.
+                                                </p>
+                                            </div>
+                                            {duplicateCandidates.map(
+                                                (candidate, index) => (
+                                                    <div
+                                                        key={candidate.id}
+                                                        className="grid gap-3 rounded-md bg-background p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+                                                    >
+                                                        <div className="min-w-0">
+                                                            <p className="truncate font-medium">
+                                                                {candidate.name}
+                                                            </p>
+                                                            <p className="text-sm text-muted-foreground">
+                                                                {
+                                                                    candidate.client_number
+                                                                }{' '}
+                                                                ·{' '}
+                                                                {candidate.type ===
+                                                                'individual'
+                                                                    ? 'Individual'
+                                                                    : 'Organization'}{' '}
+                                                                · Match:{' '}
+                                                                {candidate.matched_fields.join(
+                                                                    ', ',
+                                                                )}
+                                                            </p>
+                                                        </div>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            <Button
+                                                                type="button"
+                                                                size="sm"
+                                                                variant={
+                                                                    duplicateDecisions[
+                                                                        candidate
+                                                                            .id
+                                                                    ] ===
+                                                                    'duplicate'
+                                                                        ? 'default'
+                                                                        : 'outline'
+                                                                }
+                                                                aria-pressed={
+                                                                    duplicateDecisions[
+                                                                        candidate
+                                                                            .id
+                                                                    ] ===
+                                                                    'duplicate'
+                                                                }
+                                                                onClick={() =>
+                                                                    setDuplicateDecisions(
+                                                                        (
+                                                                            current,
+                                                                        ) => ({
+                                                                            ...current,
+                                                                            [candidate.id]:
+                                                                                'duplicate',
+                                                                        }),
+                                                                    )
+                                                                }
+                                                            >
+                                                                Same client
+                                                            </Button>
+                                                            <Button
+                                                                type="button"
+                                                                size="sm"
+                                                                variant={
+                                                                    duplicateDecisions[
+                                                                        candidate
+                                                                            .id
+                                                                    ] ===
+                                                                    'not_duplicate'
+                                                                        ? 'default'
+                                                                        : 'outline'
+                                                                }
+                                                                aria-pressed={
+                                                                    duplicateDecisions[
+                                                                        candidate
+                                                                            .id
+                                                                    ] ===
+                                                                    'not_duplicate'
+                                                                }
+                                                                onClick={() =>
+                                                                    setDuplicateDecisions(
+                                                                        (
+                                                                            current,
+                                                                        ) => ({
+                                                                            ...current,
+                                                                            [candidate.id]:
+                                                                                'not_duplicate',
+                                                                        }),
+                                                                    )
+                                                                }
+                                                            >
+                                                                Different client
+                                                            </Button>
+                                                        </div>
+                                                        <input
+                                                            type="hidden"
+                                                            name={`duplicate_decisions[${index}][candidate_id]`}
+                                                            value={candidate.id}
+                                                        />
+                                                        <input
+                                                            type="hidden"
+                                                            name={`duplicate_decisions[${index}][decision]`}
+                                                            value={
+                                                                duplicateDecisions[
+                                                                    candidate.id
+                                                                ] ?? ''
+                                                            }
+                                                        />
+                                                    </div>
+                                                ),
+                                            )}
+                                        </div>
+                                    )}
+                                {duplicateCheckError !== '' && (
+                                    <p
+                                        role="alert"
+                                        className="text-sm text-destructive"
+                                    >
+                                        {duplicateCheckError}
+                                    </p>
+                                )}
                                 <CustomFieldInputs
                                     fields={applicableFields.filter(
                                         (field) => field.step === 1,
@@ -809,8 +1067,140 @@ function ClientDialog({
                                             <Button
                                                 type="button"
                                                 formNoValidate
-                                                onClick={(event) => {
+                                                disabled={
+                                                    duplicateCheck.processing ||
+                                                    (currentStep === 1 &&
+                                                        !isEditing &&
+                                                        duplicateCandidates !==
+                                                            null &&
+                                                        duplicateCandidates.length >
+                                                            0 &&
+                                                        !allDuplicateCandidatesReviewed)
+                                                }
+                                                onClick={async (event) => {
                                                     event.preventDefault();
+
+                                                    if (
+                                                        currentStep === 1 &&
+                                                        !isEditing
+                                                    ) {
+                                                        if (
+                                                            duplicateCandidates !==
+                                                            null
+                                                        ) {
+                                                            if (
+                                                                allDuplicateCandidatesReviewed
+                                                            ) {
+                                                                setCurrentStep(
+                                                                    2,
+                                                                );
+                                                            }
+
+                                                            return;
+                                                        }
+
+                                                        const form =
+                                                            event.currentTarget
+                                                                .form;
+
+                                                        if (form === null) {
+                                                            return;
+                                                        }
+
+                                                        const values =
+                                                            new FormData(form);
+                                                        const payload: DuplicateCheckData =
+                                                            {
+                                                                type: String(
+                                                                    values.get(
+                                                                        'type',
+                                                                    ) ??
+                                                                        'organization',
+                                                                ) as Client['client_type'],
+                                                                name: String(
+                                                                    values.get(
+                                                                        'name',
+                                                                    ) ?? '',
+                                                                ),
+                                                                email: String(
+                                                                    values.get(
+                                                                        'email',
+                                                                    ) ?? '',
+                                                                ),
+                                                                phone: String(
+                                                                    values.get(
+                                                                        'phone',
+                                                                    ) ?? '',
+                                                                ),
+                                                                alternate_phone:
+                                                                    String(
+                                                                        values.get(
+                                                                            'alternate_phone',
+                                                                        ) ?? '',
+                                                                    ),
+                                                            };
+                                                        setDuplicateCheckError(
+                                                            '',
+                                                        );
+                                                        duplicateCheck.setData(
+                                                            payload,
+                                                        );
+
+                                                        try {
+                                                            const response =
+                                                                await duplicateCheck.post(
+                                                                    ClientController.duplicateCandidates()
+                                                                        .url,
+                                                                    {
+                                                                        onError:
+                                                                            (
+                                                                                errors,
+                                                                            ) =>
+                                                                                setDuplicateCheckError(
+                                                                                    Object.values(
+                                                                                        errors,
+                                                                                    )
+                                                                                        .map(
+                                                                                            String,
+                                                                                        )
+                                                                                        .join(
+                                                                                            ' ',
+                                                                                        ),
+                                                                                ),
+                                                                    },
+                                                                );
+
+                                                            if (
+                                                                response !==
+                                                                undefined
+                                                            ) {
+                                                                setDuplicateCandidates(
+                                                                    response.candidates,
+                                                                );
+                                                                setDuplicateDecisions(
+                                                                    {},
+                                                                );
+
+                                                                if (
+                                                                    response
+                                                                        .candidates
+                                                                        .length ===
+                                                                    0
+                                                                ) {
+                                                                    setCurrentStep(
+                                                                        2,
+                                                                    );
+                                                                }
+                                                            }
+                                                        } catch {
+                                                            setDuplicateCheckError(
+                                                                'Could not check for matching clients. Please try again.',
+                                                            );
+                                                        }
+
+                                                        return;
+                                                    }
+
                                                     setCurrentStep((step) =>
                                                         Math.min(
                                                             clientFormSteps.length,
@@ -819,7 +1209,15 @@ function ClientDialog({
                                                     );
                                                 }}
                                             >
-                                                Continue
+                                                {duplicateCheck.processing ? (
+                                                    <Spinner />
+                                                ) : null}
+                                                {currentStep === 1 &&
+                                                !isEditing &&
+                                                duplicateCandidates !== null &&
+                                                duplicateCandidates.length > 0
+                                                    ? 'Continue after review'
+                                                    : 'Continue'}
                                                 <ChevronRight />
                                             </Button>
                                         ) : (

@@ -399,6 +399,7 @@ class AdministrationController extends Controller
 
         return [
             'firm_name' => $firmSettings?->firm_name,
+            'invoice_contact_name' => $firmSettings?->invoice_contact_name,
             'email' => $firmSettings?->email,
             'phone' => $firmSettings?->phone,
             'website' => $firmSettings?->website,

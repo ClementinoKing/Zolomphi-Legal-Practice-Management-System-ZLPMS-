@@ -193,6 +193,13 @@ export default function OpenMatterForm({
                                     </option>
                                 ))}
                             </SelectField>
+                            {clients.length === 0 && (
+                                <p className="text-sm text-muted-foreground sm:col-span-2">
+                                    No active clients are available. Check your
+                                    client access or ask an administrator to
+                                    activate the client record.
+                                </p>
+                            )}
                             <SelectField
                                 label="Responsible attorney"
                                 name="responsible_user_id"
@@ -212,6 +219,14 @@ export default function OpenMatterForm({
                                     </option>
                                 ))}
                             </SelectField>
+                            {responsibleUsers.length === 0 && (
+                                <p className="text-sm text-muted-foreground sm:col-span-2">
+                                    No eligible attorneys are available. Check
+                                    that attorney positions are active, or ask
+                                    an administrator for permission to assign
+                                    attorneys.
+                                </p>
+                            )}
                             <SelectField
                                 label="Matter type"
                                 name="matter_type_id"
@@ -581,21 +596,34 @@ function SelectField({
     onChange?: (event: React.ChangeEvent<HTMLSelectElement>) => void;
 }) {
     const options = Children.toArray(children).flatMap((child) => {
-        if (!isValidElement<{ value?: string; children?: unknown }>(child)) {
-            return [];
-        }
-
-        const optionValue = child.props.value;
-        const optionLabel = child.props.children;
-
         if (
-            typeof optionValue !== 'string' ||
-            typeof optionLabel !== 'string'
+            !isValidElement<{
+                value?: string | number;
+                children?: React.ReactNode;
+            }>(child)
         ) {
             return [];
         }
 
-        return [{ value: optionValue, label: optionLabel }];
+        const optionValue = child.props.value;
+        const optionLabel = Children.toArray(child.props.children)
+            .map((part) =>
+                typeof part === 'string' || typeof part === 'number'
+                    ? String(part)
+                    : '',
+            )
+            .join('')
+            .trim();
+
+        if (
+            (typeof optionValue !== 'string' &&
+                typeof optionValue !== 'number') ||
+            optionLabel === ''
+        ) {
+            return [];
+        }
+
+        return [{ value: String(optionValue), label: optionLabel }];
     });
 
     return (

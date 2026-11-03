@@ -64,7 +64,7 @@ export default function PracticeRecordSettingsForm({
     const [optionsText, setOptionsText] = useState('');
     const isClient = kind === 'client';
     const stepLabels = isClient ? clientStepLabels : matterStepLabels;
-    const nextNumber = `${form.data.number_prefix}-${String(form.data.next_number).padStart(form.data.number_padding, '0')}`;
+    const nextNumber = `${form.data.number_prefix}${isClient ? '' : '-TYPE'}-${String(form.data.next_number).padStart(form.data.number_padding, '0')}`;
 
     function openField(field?: CustomFieldDefinition): void {
         const record: EditableField = field
@@ -145,7 +145,9 @@ export default function PracticeRecordSettingsForm({
                     <div>
                         <h2 className="font-semibold">Number generation</h2>
                         <p className="mt-1 text-sm text-muted-foreground">
-                            The next record will be generated as {nextNumber}.
+                            {isClient
+                                ? `The next record will be generated as ${nextNumber}.`
+                                : `Matter numbers use the prefix, matter type short code, and sequence, for example ${nextNumber}.`}
                         </p>
                     </div>
                     <Button type="submit" disabled={form.processing}>

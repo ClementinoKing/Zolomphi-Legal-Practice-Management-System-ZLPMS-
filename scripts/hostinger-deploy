@@ -6,15 +6,16 @@ PROJECT_DIRECTORY="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENVIRONMENT_FILE="$PROJECT_DIRECTORY/.env"
 DRY_RUN=false
 SEED=false
+SEED_CLASS=''
 
 usage() {
     cat <<'USAGE'
-Usage: hostinger-deploy [--dry-run] [--seed]
+Usage: hostinger-deploy [--dry-run] [--seed] [--seed-class <class>]
 
 Builds and releases this Laravel application to the Hostinger paths configured
 in .env. A normal release runs migrations and refreshes Laravel caches without
-changing Laravel maintenance mode. Seeding is never automatic; pass --seed only
-when a production seed is intended.
+changing Laravel maintenance mode. Seeding is never automatic; pass --seed for
+the default seeder or --seed-class for one explicit production seeder.
 USAGE
 }
 
@@ -64,6 +65,16 @@ while [[ $# -gt 0 ]]; do
         --seed)
             SEED=true
             ;;
+        --seed-class)
+            shift
+
+            if [[ -z "${1:-}" ]]; then
+                printf '%s\n' '--seed-class requires a Laravel seeder class.' >&2
+                exit 1
+            fi
+
+            SEED_CLASS="$1"
+            ;;
         --help|-h)
             usage
             exit 0
@@ -76,6 +87,22 @@ while [[ $# -gt 0 ]]; do
     esac
     shift
 done
+
+if [[ "$SEED" == true && -n "$SEED_CLASS" ]]; then
+    printf '%s\n' 'Use either --seed or --seed-class, not both.' >&2
+    exit 1
+fi
+
+if [[ -n "$SEED_CLASS" && ! "$SEED_CLASS" =~ ^[A-Za-z_\\][A-Za-z0-9_\\\\]*$ ]]; then
+    printf '%s\n' 'Seed class may contain only Laravel namespace characters.' >&2
+    exit 1
+fi
+
+if [[ -n "$SEED_CLASS" ]]; then
+    SEED_CLASS_ENCODED="$(printf '%s' "$SEED_CLASS" | base64 | tr -d '\n')"
+else
+    SEED_CLASS_ENCODED=''
+fi
 
 if [[ ! -f "$ENVIRONMENT_FILE" ]]; then
     printf 'Missing %s. Add the project Hostinger settings before deploying.\n' "$ENVIRONMENT_FILE" >&2
@@ -147,10 +174,23 @@ if [[ "$DRY_RUN" == true ]]; then
     exit 0
 fi
 
+load_environment_value HOSTINGER_SSH_PASSWORD
+
+if [[ -n "$HOSTINGER_SSH_PASSWORD" ]]; then
+    export HOSTINGER_SSH_PASSWORD
+    export SSH_ASKPASS="$PROJECT_DIRECTORY/scripts/hostinger-ssh-askpass"
+    export SSH_ASKPASS_REQUIRE=force
+    export DISPLAY="${DISPLAY:-hostinger-deploy}"
+    SSH_AUTH_OPTIONS=(-o PreferredAuthentications=password,keyboard-interactive -o PubkeyAuthentication=no)
+else
+    SSH_AUTH_OPTIONS=()
+fi
+
 SSH_CONTROL_DIRECTORY="$(mktemp -d "${TMPDIR:-/tmp}/hostinger-deploy.XXXXXX")"
 SSH_COMMAND=(
     ssh
     -p "$HOSTINGER_SSH_PORT"
+    "${SSH_AUTH_OPTIONS[@]}"
     -o ControlMaster=auto
     -o ControlPersist=5m
     -o "ControlPath=$SSH_CONTROL_DIRECTORY/socket"
@@ -204,13 +244,19 @@ run_local rsync -az \
     "$PROJECT_DIRECTORY/public/" "$REMOTE_TARGET:$HOSTINGER_PUBLIC_DIRECTORY/"
 
 run_local "${SSH_COMMAND[@]}" "$REMOTE_TARGET" bash -s -- \
-    "$HOSTINGER_APP_DIRECTORY" "$HOSTINGER_PUBLIC_DIRECTORY" "$HOSTINGER_PHP_BINARY" "$SEED" <<'REMOTE_RELEASE'
+    "$HOSTINGER_APP_DIRECTORY" "$HOSTINGER_PUBLIC_DIRECTORY" "$HOSTINGER_PHP_BINARY" "$SEED" "$SEED_CLASS_ENCODED" <<'REMOTE_RELEASE'
 set -euo pipefail
 
 application_directory="$1"
 public_directory="$2"
 php_binary="$3"
 seed="$4"
+seed_class_encoded="${5:-}"
+seed_class=''
+
+if [[ -n "$seed_class_encoded" ]]; then
+    seed_class="$(printf '%s' "$seed_class_encoded" | base64 --decode)"
+fi
 composer_binary="${HOSTINGER_COMPOSER_BINARY:-/usr/local/bin/composer}"
 
 if [[ ! -x "$composer_binary" ]]; then
@@ -243,7 +289,9 @@ cd "$application_directory"
 "$php_binary" "$composer_binary" install --no-dev --prefer-dist --optimize-autoloader --no-interaction
 "$php_binary" artisan migrate --force
 
-if [[ "$seed" == true ]]; then
+if [[ -n "$seed_class" ]]; then
+    "$php_binary" artisan db:seed --class="$seed_class" --force
+elif [[ "$seed" == true ]]; then
     "$php_binary" artisan db:seed --force
 fi
 

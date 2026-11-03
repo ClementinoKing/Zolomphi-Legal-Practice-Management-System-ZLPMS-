@@ -39,10 +39,21 @@ type InvoiceSettings = {
     tax_enabled: boolean;
     tax_label: string;
     default_tax_rate: string;
+    levy_enabled: boolean;
+    levy_label: string;
+    levy_rate: string;
     number_prefix: string;
     number_padding: number;
     next_number: number;
     default_terms: string;
+    payment: {
+        instructions: string;
+        bank_name: string;
+        account_name: string;
+        account_number: string;
+        account_branch: string;
+        swift_code: string;
+    };
     template: InvoiceTemplate;
 };
 
@@ -113,6 +124,13 @@ export default function InvoiceSettingsPage({ settings, logos, firm }: Props) {
         form.setData('template', { ...form.data.template, [key]: value });
     }
 
+    function updatePayment<K extends keyof InvoiceSettings['payment']>(
+        key: K,
+        value: InvoiceSettings['payment'][K],
+    ): void {
+        form.setData('payment', { ...form.data.payment, [key]: value });
+    }
+
     return (
         <>
             <Head title="Invoice settings" />
@@ -156,14 +174,14 @@ export default function InvoiceSettingsPage({ settings, logos, firm }: Props) {
                                 <div>
                                     <h2 className="font-semibold">Tax</h2>
                                     <p className="mt-1 text-sm text-muted-foreground">
-                                        Apply a default rate to new time,
-                                        expense, and manual invoice lines.
+                                        Configure invoice-wide VAT and MLS Levy
+                                        lines for new invoices.
                                     </p>
                                 </div>
                             </div>
                             <div className="mt-5 grid gap-4 sm:grid-cols-[minmax(0,1fr)_10rem]">
                                 <label className="grid gap-1.5 text-sm font-medium">
-                                    Tax label
+                                    VAT label
                                     <Input
                                         value={form.data.tax_label}
                                         disabled={!form.data.tax_enabled}
@@ -178,7 +196,7 @@ export default function InvoiceSettingsPage({ settings, logos, firm }: Props) {
                                     <FieldError error={form.errors.tax_label} />
                                 </label>
                                 <label className="grid gap-1.5 text-sm font-medium">
-                                    Default rate (%)
+                                    VAT rate (%)
                                     <Input
                                         type="number"
                                         min="0"
@@ -210,14 +228,137 @@ export default function InvoiceSettingsPage({ settings, logos, firm }: Props) {
                                 />
                                 <span>
                                     <span className="block font-medium">
-                                        Enable tax on new invoice lines
+                                        Enable VAT on new invoices
                                     </span>
                                     <span className="text-muted-foreground">
-                                        Existing invoice drafts keep their own
-                                        line tax values.
+                                        The configured rate is saved with each
+                                        new invoice draft.
                                     </span>
                                 </span>
                             </label>
+                            <div className="mt-4 grid gap-4 sm:grid-cols-[minmax(0,1fr)_10rem]">
+                                <label className="grid gap-1.5 text-sm font-medium">
+                                    Levy label
+                                    <Input
+                                        value={form.data.levy_label}
+                                        disabled={!form.data.levy_enabled}
+                                        onChange={(event) =>
+                                            form.setData(
+                                                'levy_label',
+                                                event.target.value,
+                                            )
+                                        }
+                                    />
+                                    <FieldError
+                                        error={form.errors.levy_label}
+                                    />
+                                </label>
+                                <label className="grid gap-1.5 text-sm font-medium">
+                                    Levy rate (%)
+                                    <Input
+                                        type="number"
+                                        min="0"
+                                        max="100"
+                                        step="0.01"
+                                        value={form.data.levy_rate}
+                                        disabled={!form.data.levy_enabled}
+                                        onChange={(event) =>
+                                            form.setData(
+                                                'levy_rate',
+                                                event.target.value,
+                                            )
+                                        }
+                                    />
+                                    <FieldError error={form.errors.levy_rate} />
+                                </label>
+                            </div>
+                            <label className="mt-4 flex cursor-pointer items-center gap-3 rounded-lg border border-border/70 bg-muted/25 px-3 py-3 text-sm">
+                                <Checkbox
+                                    checked={form.data.levy_enabled}
+                                    onCheckedChange={(checked) =>
+                                        form.setData(
+                                            'levy_enabled',
+                                            checked === true,
+                                        )
+                                    }
+                                />
+                                <span>
+                                    <span className="block font-medium">
+                                        Enable MLS levy on new invoices
+                                    </span>
+                                    <span className="text-muted-foreground">
+                                        The configured rate is saved with each
+                                        new invoice draft.
+                                    </span>
+                                </span>
+                            </label>
+                        </section>
+
+                        <section className="rounded-xl border border-border/70 bg-background p-5">
+                            <div className="flex gap-3">
+                                <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                                    <ReceiptText className="size-4" />
+                                </div>
+                                <div>
+                                    <h2 className="font-semibold">
+                                        Payment instructions
+                                    </h2>
+                                    <p className="mt-1 text-sm text-muted-foreground">
+                                        These details appear on printed
+                                        invoices. Verify them before use.
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="mt-5 grid gap-4 md:grid-cols-2">
+                                <label className="grid gap-1.5 text-sm font-medium md:col-span-2">
+                                    Payment instructions
+                                    <textarea
+                                        className="min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                        value={form.data.payment.instructions}
+                                        onChange={(event) =>
+                                            updatePayment(
+                                                'instructions',
+                                                event.target.value,
+                                            )
+                                        }
+                                    />
+                                    <FieldError
+                                        error={
+                                            form.errors['payment.instructions']
+                                        }
+                                    />
+                                </label>
+                                {(
+                                    [
+                                        ['bank_name', 'Bank name'],
+                                        ['account_name', 'Account name'],
+                                        ['account_number', 'Account number'],
+                                        ['account_branch', 'Account branch'],
+                                        ['swift_code', 'SWIFT code'],
+                                    ] as const
+                                ).map(([key, label]) => (
+                                    <label
+                                        key={key}
+                                        className="grid gap-1.5 text-sm font-medium"
+                                    >
+                                        {label}
+                                        <Input
+                                            value={form.data.payment[key]}
+                                            onChange={(event) =>
+                                                updatePayment(
+                                                    key,
+                                                    event.target.value,
+                                                )
+                                            }
+                                        />
+                                        <FieldError
+                                            error={
+                                                form.errors[`payment.${key}`]
+                                            }
+                                        />
+                                    </label>
+                                ))}
+                            </div>
                         </section>
 
                         <section className="rounded-xl border border-border/70 bg-background p-5">
@@ -348,7 +489,9 @@ export default function InvoiceSettingsPage({ settings, logos, firm }: Props) {
                                     <div className="flex gap-2">
                                         <input
                                             type="color"
-                                            value={form.data.template.accent_color}
+                                            value={
+                                                form.data.template.accent_color
+                                            }
                                             className="h-9 w-11 cursor-pointer rounded-md border border-input bg-background p-1"
                                             onChange={(event) =>
                                                 updateTemplate(
@@ -358,7 +501,9 @@ export default function InvoiceSettingsPage({ settings, logos, firm }: Props) {
                                             }
                                         />
                                         <Input
-                                            value={form.data.template.accent_color}
+                                            value={
+                                                form.data.template.accent_color
+                                            }
                                             onChange={(event) =>
                                                 updateTemplate(
                                                     'accent_color',
@@ -368,7 +513,9 @@ export default function InvoiceSettingsPage({ settings, logos, firm }: Props) {
                                         />
                                     </div>
                                     <FieldError
-                                        error={form.errors['template.accent_color']}
+                                        error={
+                                            form.errors['template.accent_color']
+                                        }
                                     />
                                 </label>
                                 <label className="grid gap-1.5 text-sm font-medium">
@@ -432,7 +579,9 @@ export default function InvoiceSettingsPage({ settings, logos, firm }: Props) {
                                         type="button"
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => fileInput.current?.click()}
+                                        onClick={() =>
+                                            fileInput.current?.click()
+                                        }
                                     >
                                         <Upload /> Upload logo
                                     </Button>
@@ -472,8 +621,11 @@ export default function InvoiceSettingsPage({ settings, logos, firm }: Props) {
                                                 form.setData('logo_file', null);
                                                 setLocalLogoPreview(null);
 
-                                                if (fileInput.current !== null) {
-                                                    fileInput.current.value = '';
+                                                if (
+                                                    fileInput.current !== null
+                                                ) {
+                                                    fileInput.current.value =
+                                                        '';
                                                 }
                                             }}
                                         >
@@ -502,7 +654,10 @@ export default function InvoiceSettingsPage({ settings, logos, firm }: Props) {
                                                         ...form.data.template,
                                                         logo,
                                                     });
-                                                    form.setData('logo_file', null);
+                                                    form.setData(
+                                                        'logo_file',
+                                                        null,
+                                                    );
                                                     setLocalLogoPreview(null);
                                                 }}
                                             >
@@ -549,14 +704,13 @@ export default function InvoiceSettingsPage({ settings, logos, firm }: Props) {
                                     label="Show firm tax ID"
                                     description="Display the firm registration/tax identifier."
                                     onCheckedChange={(checked) =>
-                                        updateTemplate(
-                                            'show_tax_id',
-                                            checked,
-                                        )
+                                        updateTemplate('show_tax_id', checked)
                                     }
                                 />
                                 <ToggleRow
-                                    checked={form.data.template.show_matter_reference}
+                                    checked={
+                                        form.data.template.show_matter_reference
+                                    }
                                     label="Show matter reference"
                                     description="Include the linked matter number where available."
                                     onCheckedChange={(checked) =>
@@ -626,7 +780,8 @@ export default function InvoiceSettingsPage({ settings, logos, firm }: Props) {
                                     <p className="font-medium text-foreground">
                                         Client name
                                     </p>
-                                    {form.data.template.show_matter_reference && (
+                                    {form.data.template
+                                        .show_matter_reference && (
                                         <p>Matter: MAT-000001</p>
                                     )}
                                     {form.data.template.show_tax_id &&
@@ -644,10 +799,37 @@ export default function InvoiceSettingsPage({ settings, logos, firm }: Props) {
                                     {form.data.tax_enabled && (
                                         <div className="flex justify-between text-muted-foreground">
                                             <span>
-                                                {form.data.tax_label} ({form.data.default_tax_rate}%)
+                                                {form.data.tax_label} (
+                                                {form.data.default_tax_rate}%)
                                             </span>
                                             <span>
-                                                {firm?.currency ?? 'MWK'} 0.00
+                                                {firm?.currency ?? 'MWK'}{' '}
+                                                {(
+                                                    (100 *
+                                                        Number(
+                                                            form.data
+                                                                .default_tax_rate,
+                                                        )) /
+                                                    100
+                                                ).toFixed(2)}
+                                            </span>
+                                        </div>
+                                    )}
+                                    {form.data.levy_enabled && (
+                                        <div className="flex justify-between text-muted-foreground">
+                                            <span>
+                                                {form.data.levy_label} (
+                                                {form.data.levy_rate}%)
+                                            </span>
+                                            <span>
+                                                {firm?.currency ?? 'MWK'}{' '}
+                                                {(
+                                                    (100 *
+                                                        Number(
+                                                            form.data.levy_rate,
+                                                        )) /
+                                                    100
+                                                ).toFixed(2)}
                                             </span>
                                         </div>
                                     )}
@@ -660,7 +842,21 @@ export default function InvoiceSettingsPage({ settings, logos, firm }: Props) {
                                     >
                                         <span>Total due</span>
                                         <span>
-                                            {firm?.currency ?? 'MWK'} 100.00
+                                            {firm?.currency ?? 'MWK'}{' '}
+                                            {(
+                                                100 +
+                                                (form.data.tax_enabled
+                                                    ? Number(
+                                                          form.data
+                                                              .default_tax_rate,
+                                                      )
+                                                    : 0) +
+                                                (form.data.levy_enabled
+                                                    ? Number(
+                                                          form.data.levy_rate,
+                                                      )
+                                                    : 0)
+                                            ).toFixed(2)}
                                         </span>
                                     </div>
                                 </div>

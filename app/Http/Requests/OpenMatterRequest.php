@@ -73,6 +73,16 @@ class OpenMatterRequest extends FormRequest
     public function after(): array
     {
         return [function (Validator $validator): void {
+            if (! $validator->errors()->has('client_id')) {
+                $client = Client::query()
+                    ->where('status', 'active')
+                    ->find($this->integer('client_id'));
+
+                if ($client !== null && ! ($this->user()?->can('view', $client) ?? false)) {
+                    $validator->errors()->add('client_id', 'You do not have access to the selected client.');
+                }
+            }
+
             if ($validator->errors()->has('responsible_user_id') || $validator->errors()->has('attorney_ids')) {
                 return;
             }

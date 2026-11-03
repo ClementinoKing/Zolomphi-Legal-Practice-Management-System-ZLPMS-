@@ -13,6 +13,7 @@ use App\Models\Matter;
 use App\Models\MatterCharge;
 use App\Models\TimeEntry;
 use App\Models\User;
+use App\Services\InvoiceSettings;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -24,6 +25,7 @@ class SaveInvoiceDraft
         private readonly CurrencyConverter $currencyConverter,
         private readonly RecordAuditEvent $audit,
         private readonly SendPracticeAlert $alerts,
+        private readonly InvoiceSettings $invoiceSettings,
     ) {}
 
     /**
@@ -50,11 +52,20 @@ class SaveInvoiceDraft
             $matter = $this->matterFor($attributes, $client, $user);
             $draft = $this->saveInvoice($attributes, $user, $invoice, $client, $matter);
             $items = $this->buildItems($attributes['items'], $client, $matter, $draft, $user);
+            $taxBreakdown = $draft->tax_breakdown;
 
+            if ($taxBreakdown !== null) {
+                foreach ($items as &$item) {
+                    $item['tax_rate'] = 0;
+                    $item['tax_amount'] = 0;
+                    $item['amount'] = round((float) $item['quantity'] * (float) $item['unit_price'], 2);
+                }
+                unset($item);
+            }
+
+            $totals = $this->totals($items, $taxBreakdown);
             $draft->items()->delete();
             $draft->items()->createMany($items);
-
-            $totals = $this->totals($items);
             $draft->update($totals);
             $this->recordActivity($draft, $user, $invoice === null ? 'invoice.created' : 'invoice.updated');
 
@@ -131,11 +142,15 @@ class SaveInvoiceDraft
             'currency' => $attributes['currency'],
             'issued_at' => $attributes['issued_at'],
             'due_at' => $attributes['due_at'],
+            'our_reference' => $attributes['our_reference'] ?? null,
+            'your_reference' => $attributes['your_reference'] ?? null,
             'notes' => $attributes['notes'] ?? null,
             'terms' => $attributes['terms'] ?? null,
         ];
 
         if ($invoice === null) {
+            $data['tax_breakdown'] = $this->configuredTaxBreakdown();
+
             return Invoice::query()->create([
                 ...$data,
                 'invoice_number' => app(GenerateInvoiceNumber::class)->handle(),
@@ -397,27 +412,66 @@ class SaveInvoiceDraft
 
     /**
      * @param  array<int, array<string, int|float|string|null>>  $items
-     * @return array<string, float>
+     * @return array{subtotal: float, tax_amount: float, tax_breakdown: array<int, array{label: string, rate: string, amount: string}>|null, discount_amount: float, total_amount: float, balance_due: float}
      */
-    private function totals(array $items): array
+    private function totals(array $items, ?array $taxBreakdown = null): array
     {
         $subtotal = array_sum(array_map(
             fn (array $item): float => round((float) $item['quantity'] * (float) $item['unit_price'], 2),
             $items,
         ));
-        $taxAmount = array_sum(array_map(
-            fn (array $item): float => (float) $item['tax_amount'],
-            $items,
-        ));
+        if ($taxBreakdown === null) {
+            $taxAmount = array_sum(array_map(
+                fn (array $item): float => (float) $item['tax_amount'],
+                $items,
+            ));
+        } else {
+            $taxAmount = 0;
+
+            foreach ($taxBreakdown as &$tax) {
+                $amount = round($subtotal * (float) $tax['rate'] / 100, 2);
+                $tax['amount'] = number_format($amount, 2, '.', '');
+                $taxAmount += $amount;
+            }
+            unset($tax);
+        }
         $total = round($subtotal + $taxAmount, 2);
 
         return [
             'subtotal' => round($subtotal, 2),
             'tax_amount' => round($taxAmount, 2),
+            'tax_breakdown' => $taxBreakdown,
             'discount_amount' => 0,
             'total_amount' => $total,
             'balance_due' => $total,
         ];
+    }
+
+    /**
+     * @return array<int, array{label: string, rate: string, amount: string}>
+     */
+    private function configuredTaxBreakdown(): array
+    {
+        $settings = $this->invoiceSettings->values();
+        $taxes = [];
+
+        if ($settings['tax_enabled']) {
+            $taxes[] = [
+                'label' => $settings['tax_label'],
+                'rate' => $settings['default_tax_rate'],
+                'amount' => '0.00',
+            ];
+        }
+
+        if ($settings['levy_enabled']) {
+            $taxes[] = [
+                'label' => $settings['levy_label'],
+                'rate' => $settings['levy_rate'],
+                'amount' => '0.00',
+            ];
+        }
+
+        return $taxes;
     }
 
     private function recordActivity(Invoice $invoice, User $user, string $event): void

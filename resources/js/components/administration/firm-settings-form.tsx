@@ -15,6 +15,7 @@ import { Spinner } from '@/components/ui/spinner';
 
 type FirmSettings = {
     firm_name: string | null;
+    invoice_contact_name: string | null;
     email: string | null;
     phone: string | null;
     website: string | null;
@@ -60,6 +61,12 @@ export default function FirmSettingsForm({
                                     defaultValue={settings.firm_name}
                                     error={errors.firm_name}
                                     required
+                                />
+                                <Field
+                                    label="Invoice contact person"
+                                    name="invoice_contact_name"
+                                    defaultValue={settings.invoice_contact_name}
+                                    error={errors.invoice_contact_name}
                                 />
                                 <Field
                                     label="Email address"

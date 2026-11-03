@@ -76,10 +76,11 @@ class GlobalSearchController extends Controller
                 ->where('client_number', 'like', '%'.$query.'%')
                 ->orWhere('full_name', 'like', '%'.$query.'%')
                 ->orWhere('organization_name', 'like', '%'.$query.'%')
-                ->orWhere('email', 'like', '%'.$query.'%'))
+                ->orWhereHas('emailContact', fn (Builder $contact): Builder => $contact->where('value', 'like', '%'.$query.'%')))
             ->orderBy('organization_name')
             ->orderBy('full_name')
             ->limit($limit)
+            ->with('emailContact:id,value')
             ->get()
             ->map(fn (Client $client): array => [
                 'id' => $client->id,

@@ -3,6 +3,7 @@
 use App\Models\ActivityLog;
 use App\Models\Client;
 use App\Models\Expense;
+use App\Models\GeneralSetting;
 use App\Models\Invoice;
 use App\Models\Matter;
 use App\Models\MatterCharge;
@@ -10,6 +11,7 @@ use App\Models\Permission;
 use App\Models\Role;
 use App\Models\TimeEntry;
 use App\Models\User;
+use App\Services\InvoiceSettings;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -105,15 +107,59 @@ test('administrators can build a draft invoice from eligible work and manual lin
     expect($invoice->status)->toBe('draft');
     expect($invoice->matter_id)->toBeNull();
     expect($invoice->subtotal)->toBe('420.00');
-    expect($invoice->tax_amount)->toBe('26.00');
-    expect($invoice->total_amount)->toBe('446.00');
-    expect($invoice->balance_due)->toBe('446.00');
+    expect($invoice->tax_amount)->toBe('73.50');
+    expect($invoice->tax_breakdown)->toMatchArray([
+        ['label' => 'VAT', 'rate' => '16.50', 'amount' => '69.30'],
+        ['label' => 'MLS Levy', 'rate' => '1.00', 'amount' => '4.20'],
+    ]);
+    expect($invoice->total_amount)->toBe('493.50');
+    expect($invoice->balance_due)->toBe('493.50');
     expect($invoice->items)->toHaveCount(4);
     expect($invoice->items->firstWhere('time_entry_id', $timeEntry->id)->quantity)->toBe('2.00');
     expect($invoice->items->firstWhere('time_entry_id', $timeEntry->id)->unit_price)->toBe('100.00');
     expect($invoice->items->firstWhere('expense_id', $expense->id))->not->toBeNull();
     expect($invoice->items->firstWhere('matter_charge_id', $flatFee->id))->not->toBeNull();
     expect(ActivityLog::query()->where('event', 'invoice.created')->where('subject_id', $invoice->id)->exists())->toBeTrue();
+});
+
+test('new invoices calculate configured VAT and MLS levy separately from subtotal', function () {
+    $administrator = invoiceAdministrator();
+    $client = Client::factory()->create();
+    $firmSettings = GeneralSetting::query()->create();
+    $invoiceSettings = app(InvoiceSettings::class)->values($firmSettings);
+    $invoiceSettings['default_tax_rate'] = '10.00';
+    $invoiceSettings['levy_rate'] = '2.00';
+    app(InvoiceSettings::class)->update($firmSettings, $invoiceSettings);
+
+    $this->actingAs($administrator)
+        ->post(route('invoices.store'), draftPayload($client, [
+            ['source_type' => 'manual', 'source_id' => null, 'description' => 'Legal work', 'quantity' => 1, 'unit_price' => 100, 'tax_rate' => 0],
+        ]))
+        ->assertRedirect();
+
+    $invoice = Invoice::query()->sole();
+
+    expect($invoice->subtotal)->toBe('100.00')
+        ->and($invoice->tax_amount)->toBe('12.00')
+        ->and($invoice->total_amount)->toBe('112.00')
+        ->and($invoice->tax_breakdown)->toMatchArray([
+            ['label' => 'VAT', 'rate' => '10.00', 'amount' => '10.00'],
+            ['label' => 'MLS Levy', 'rate' => '2.00', 'amount' => '2.00'],
+        ]);
+
+    $invoiceSettings['default_tax_rate'] = '20.00';
+    $invoiceSettings['levy_rate'] = '5.00';
+    app(InvoiceSettings::class)->update($firmSettings, $invoiceSettings);
+
+    $this->actingAs($administrator)
+        ->patch(route('invoices.update', $invoice), draftPayload($client, [
+            ['source_type' => 'manual', 'source_id' => null, 'description' => 'Legal work', 'quantity' => 1, 'unit_price' => 100, 'tax_rate' => 0],
+        ]))
+        ->assertRedirect();
+
+    expect($invoice->refresh()->total_amount)->toBe('112.00')
+        ->and($invoice->tax_breakdown[0]['rate'])->toBe('10.00')
+        ->and($invoice->tax_breakdown[1]['rate'])->toBe('2.00');
 });
 
 test('approved source amounts are copied into a draft in the selected firm currency', function () {
@@ -151,7 +197,7 @@ test('approved source amounts are copied into a draft in the selected firm curre
 
     expect($invoice->currency)->toBe('USD');
     expect($invoice->items->sole()->unit_price)->toBe('0.58');
-    expect($invoice->total_amount)->toBe('1.16');
+    expect($invoice->total_amount)->toBe('1.36');
 });
 
 test('drafts can be updated and removed source records become available again', function () {

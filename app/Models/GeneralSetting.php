@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 
 #[Fillable([
     'firm_name',
+    'invoice_contact_name',
     'email',
     'phone',
     'website',

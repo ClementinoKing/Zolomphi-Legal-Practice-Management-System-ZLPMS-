@@ -6,6 +6,7 @@ use App\Actions\Invoices\SaveInvoiceDraft;
 use App\CurrencyConverter;
 use App\Http\Requests\SaveInvoiceDraftRequest;
 use App\Models\Client;
+use App\Models\Document;
 use App\Models\Expense;
 use App\Models\GeneralSetting;
 use App\Models\Invoice;
@@ -15,10 +16,13 @@ use App\Models\MatterCharge;
 use App\Models\TimeEntry;
 use App\Models\User;
 use App\Services\InvoiceSettings;
+use Illuminate\Contracts\View\View as ViewContract;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response as HttpResponse;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -141,6 +145,64 @@ class InvoiceController extends Controller
         ]);
     }
 
+    public function printable(Invoice $invoice): ViewContract
+    {
+        $invoice->load([
+            'client.emailContact',
+            'client.phoneContact',
+            'matter',
+            'items',
+        ]);
+
+        $settings = $this->invoiceSettings->values();
+        $firm = GeneralSetting::query()->first();
+        $taxes = $invoice->tax_breakdown;
+        $logoId = data_get($settings, 'template.logo.id');
+        $logoUrl = is_string($logoId) && str_starts_with($logoId, 'document:')
+            ? route('invoices.template-logo', ['document' => (int) substr($logoId, strlen('document:'))])
+            : data_get($settings, 'template.logo.preview_url', '/logos/Zolomphi Logo.svg');
+
+        if ($taxes === null) {
+            $legacyTaxes = $invoice->items
+                ->filter(fn (InvoiceItem $item): bool => (float) $item->tax_rate > 0)
+                ->groupBy(fn (InvoiceItem $item): string => (string) $item->tax_rate);
+            $taxes = $legacyTaxes->map(fn ($items, string $rate): array => [
+                'label' => $settings['tax_label'],
+                'rate' => $rate,
+                'amount' => number_format((float) $items->sum('tax_amount'), 2, '.', ''),
+            ])->values()->all();
+        }
+
+        return view('invoices.print', [
+            'invoice' => $invoice,
+            'client' => $invoice->client,
+            'matter' => $invoice->matter,
+            'firm' => $firm,
+            'settings' => $settings,
+            'taxes' => $taxes,
+            'logoUrl' => $logoUrl,
+            'showTaxId' => $settings['template']['show_tax_id'] && filled($firm?->tax_id),
+            'showMatterReference' => $settings['template']['show_matter_reference'] && $invoice->matter !== null,
+        ]);
+    }
+
+    public function templateLogo(Document $document): HttpResponse
+    {
+        abort_unless(
+            in_array($document->mime_type, ['image/jpeg', 'image/png', 'image/webp'], true)
+                && $document->category === 'invoice-template-logo',
+            404,
+        );
+
+        $disk = Storage::disk($document->disk);
+        abort_unless($disk->exists($document->path), 404);
+
+        return response($disk->get($document->path), 200, [
+            'Content-Type' => $document->mime_type,
+            'Cache-Control' => 'private, max-age=3600',
+        ]);
+    }
+
     public function update(
         SaveInvoiceDraftRequest $request,
         Invoice $invoice,
@@ -202,9 +264,19 @@ class InvoiceController extends Controller
                 'currency' => $currency,
                 'issued_at' => today()->toDateString(),
                 'due_at' => today()->addDays(30)->toDateString(),
-                'tax_rate' => $settings['tax_enabled'] ? $settings['default_tax_rate'] : '0.00',
+                'tax_rate' => '0.00',
                 'terms' => $settings['default_terms'],
                 'tax_label' => $settings['tax_enabled'] ? $settings['tax_label'] : 'Tax',
+                'taxes' => array_values(array_filter([
+                    $settings['tax_enabled'] ? [
+                        'label' => $settings['tax_label'],
+                        'rate' => $settings['default_tax_rate'],
+                    ] : null,
+                    $settings['levy_enabled'] ? [
+                        'label' => $settings['levy_label'],
+                        'rate' => $settings['levy_rate'],
+                    ] : null,
+                ])),
             ],
         ];
     }
@@ -325,6 +397,9 @@ class InvoiceController extends Controller
             'currency' => $invoice->currency,
             'issued_at' => $invoice->issued_at?->toDateString(),
             'due_at' => $invoice->due_at?->toDateString(),
+            'our_reference' => $invoice->our_reference,
+            'your_reference' => $invoice->your_reference,
+            'tax_breakdown' => $invoice->tax_breakdown,
             'notes' => $invoice->notes,
             'terms' => $invoice->terms,
             'subtotal' => $invoice->subtotal,

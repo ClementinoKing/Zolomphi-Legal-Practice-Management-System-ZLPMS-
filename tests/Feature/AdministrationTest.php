@@ -138,6 +138,7 @@ test('administrators can save firm settings and create access records', function
 
     $this->put(route('administration.firm-settings.update'), [
         'firm_name' => 'Zolomphi & Co.',
+        'invoice_contact_name' => 'Misozi Jacob',
         'email' => 'office@zolomphi.test',
         'phone' => '+265 999 000 000',
         'website' => 'https://zolomphi.test',
@@ -146,6 +147,7 @@ test('administrators can save firm settings and create access records', function
     ])->assertRedirect(route('administration.firm', absolute: false));
 
     expect(GeneralSetting::query()->firstOrFail()->firm_name)->toBe('Zolomphi & Co.');
+    expect(GeneralSetting::query()->firstOrFail()->invoice_contact_name)->toBe('Misozi Jacob');
 
     $permission = Permission::query()->create([
         'key' => 'matters.manage',
@@ -371,7 +373,9 @@ test('administrators can create and update clients', function () {
         'status' => 'active',
     ])->assertRedirect(route('clients.index', absolute: false));
 
-    $client = Client::query()->where('email', 'legal@chisomo.example.test')->firstOrFail();
+    $client = Client::query()
+        ->whereHas('emailContact', fn ($contact) => $contact->where('normalized_value', 'legal@chisomo.example.test'))
+        ->firstOrFail();
     expect($client->client_number)->toMatch('/^CLI-\\d{6}$/');
     expect($client->contact_person)->toBe('Annie Chisomo');
 
@@ -420,6 +424,7 @@ test('administrators can open a matter with participants', function () {
     $matterType = MatterType::query()->create([
         'name' => 'Commercial litigation',
         'code' => 'commercial-litigation',
+        'short_code' => 'LIT',
         'default_billing_type' => 'hourly',
         'default_hourly_rate' => 75000,
         'is_active' => true,
@@ -452,7 +457,7 @@ test('administrators can open a matter with participants', function () {
         ->assertRedirect(route('matters.index', absolute: false));
 
     $matter = Matter::query()->where('title', 'Chisomo Holdings contract dispute')->firstOrFail();
-    expect($matter->matter_number)->toMatch('/^MAT-\\d{6}$/');
+    expect($matter->matter_number)->toMatch('/^MAT-LIT-\\d{6}$/');
     expect($matter->client_id)->toBe($client->id);
     expect($matter->matter_type_id)->toBe($matterType->id);
     expect($matter->responsible_user_id)->toBe($responsibleAttorney->id);
@@ -512,6 +517,16 @@ test('matter attorney assignments reject users without attorney positions', func
 test('the matters page includes its table and opening reference data', function () {
     $administrator = administrationUser();
     $client = Client::factory()->create();
+    $department = Department::factory()->create();
+    $attorneyPosition = Position::factory()->create([
+        'department_id' => $department->id,
+        'is_attorney' => true,
+    ]);
+    $responsibleAttorney = User::factory()->create([
+        'status' => 'active',
+        'department_id' => $department->id,
+        'position_id' => $attorneyPosition->id,
+    ]);
     $matterType = MatterType::query()->create([
         'name' => 'Property conveyancing',
         'code' => 'property-conveyancing',
@@ -535,6 +550,10 @@ test('the matters page includes its table and opening reference data', function 
         ->orderBy('name')
         ->pluck('id')
         ->search($matterType->id);
+    $responsibleAttorneyIndex = User::attorneys()
+        ->orderBy('name')
+        ->pluck('id')
+        ->search($responsibleAttorney->id);
 
     $this->actingAs($administrator)
         ->get(route('matters.index'))
@@ -542,10 +561,94 @@ test('the matters page includes its table and opening reference data', function 
         ->assertInertia(fn (Assert $page) => $page
             ->component('matters/index')
             ->where('clients.'.$clientIndex.'.id', $client->id)
+            ->where('responsibleUsers.'.$responsibleAttorneyIndex.'.id', $responsibleAttorney->id)
             ->where('matterTypes.'.$matterTypeIndex.'.id', $matterType->id));
 
     $this->get(route('matters.open'))
         ->assertRedirect(route('matters.index'));
+});
+
+test('matter creators with client access can select clients without existing matters', function () {
+    $permissions = collect([
+        'clients.view' => ['name' => 'View clients', 'group' => 'Clients'],
+        'matters.view.department' => ['name' => 'View department matters', 'group' => 'Matters'],
+        'matters.create' => ['name' => 'Open matters', 'group' => 'Matters'],
+        'matters.participants.manage' => ['name' => 'Manage matter participants', 'group' => 'Matters'],
+    ])->map(fn (array $details, string $key): Permission => Permission::query()->firstOrCreate(
+        ['key' => $key],
+        $details,
+    ));
+    $role = Role::query()->create(['name' => 'Department Matter Creator']);
+    $role->assignedPermissions()->attach($permissions->pluck('id'));
+
+    $department = Department::factory()->create();
+    $position = Position::factory()->create([
+        'department_id' => $department->id,
+        'is_attorney' => true,
+    ]);
+    $user = User::factory()->create([
+        'status' => 'active',
+        'department_id' => $department->id,
+        'position_id' => $position->id,
+    ]);
+    $user->roles()->attach($role);
+    $client = Client::factory()->create(['status' => 'active']);
+    $clientIndex = Client::query()
+        ->where('status', 'active')
+        ->get(['id', 'full_name', 'organization_name'])
+        ->map(fn (Client $availableClient): array => [
+            'id' => $availableClient->id,
+            'name' => $availableClient->full_name ?? $availableClient->organization_name ?? 'Unnamed client',
+        ])
+        ->sortBy('name')
+        ->pluck('id')
+        ->search($client->id);
+    $responsibleAttorneyIndex = User::attorneys()
+        ->orderBy('name')
+        ->pluck('id')
+        ->search($user->id);
+
+    $this->actingAs($user)
+        ->get(route('matters.index'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('matters/index')
+            ->where('clients.'.$clientIndex.'.id', $client->id)
+            ->where('responsibleUsers.'.$responsibleAttorneyIndex.'.id', $user->id));
+});
+
+test('matter creators cannot open a matter for a client they cannot view', function () {
+    $permissions = collect([
+        'matters.create' => ['name' => 'Open matters', 'group' => 'Matters'],
+        'matters.view.department' => ['name' => 'View department matters', 'group' => 'Matters'],
+    ])->map(fn (array $details, string $key): Permission => Permission::query()->firstOrCreate(
+        ['key' => $key],
+        $details,
+    ));
+    $role = Role::query()->create(['name' => 'Matter Creator Without Client Access']);
+    $role->assignedPermissions()->attach($permissions->pluck('id'));
+    $user = User::factory()->create();
+    $user->roles()->attach($role);
+    $client = Client::factory()->create(['status' => 'active']);
+
+    $this->actingAs($user)
+        ->get(route('matters.index'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('matters/index')
+            ->where('clients', []));
+
+    $this->post(route('matters.store'), [
+        'client_id' => $client->id,
+        'matter_type_id' => MatterType::query()->where('is_active', true)->value('id'),
+        'responsible_user_id' => $user->id,
+        'title' => 'Unauthorized client matter',
+        'status' => 'open',
+        'priority' => 'normal',
+        'billing_type' => 'hourly',
+        'default_hourly_rate' => 50000,
+        'opened_at' => now()->toDateString(),
+    ])->assertSessionHasErrors('client_id');
 });
 
 test('administrators can perform and audit legal work in a matter workspace', function () {
@@ -750,7 +853,9 @@ test('administrators can view the company drive', function () {
             ->where('organizationFolders', fn (Collection $organizationFolders): bool => $organizationFolders
                 ->contains(fn (array $folder): bool => $folder['id'] === $organizationFolder->id
                     && $folder['documentCount'] === 1
-                    && $folder['documents'][0]['name'] === 'Organization compliance register')));
+                    && $folder['documents'][0]['name'] === 'Organization compliance register'))
+            ->where('storage.usedBytes', 6144)
+            ->where('storage.quotaBytes', 1024 ** 4));
 });
 
 test('administrators upload and download company-drive documents through the private R2 disk', function () {
@@ -853,6 +958,7 @@ test('administrators can create matter and billing configuration items', functio
 
     $this->post(route('administration.reference-data.store', ['resource' => 'matter-types']), [
         'name' => 'Litigation',
+        'short_code' => 'lit',
         'description' => 'Court-related matters.',
         'default_billing_type' => 'hourly',
         'default_hourly_rate' => 50000,
@@ -869,16 +975,20 @@ test('administrators can create matter and billing configuration items', functio
         'sort_order' => 1,
     ])->assertRedirect(route('administration.billing-items.index', absolute: false));
 
-    expect(MatterType::query()->where('code', 'litigation')->exists())->toBeTrue();
+    expect(MatterType::query()->where('code', 'litigation')->value('short_code'))->toBe('LIT');
     expect(BillingItem::query()->where('code', 'consultation')->exists())->toBeTrue();
 });
 
 test('reference-data codes are generated from names and remain unique', function () {
     $this->actingAs(administrationUser());
 
-    foreach (['Family Testament', 'Family Testament!'] as $name) {
+    foreach ([
+        ['name' => 'Family Testament', 'short_code' => 'FAM'],
+        ['name' => 'Family Testament!', 'short_code' => 'FAM2'],
+    ] as $matterType) {
         $this->post(route('administration.reference-data.store', ['resource' => 'matter-types']), [
-            'name' => $name,
+            'name' => $matterType['name'],
+            'short_code' => $matterType['short_code'],
             'code' => 'manual-code',
             'default_billing_type' => 'hourly',
             'is_active' => true,
